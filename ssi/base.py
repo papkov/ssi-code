@@ -59,7 +59,7 @@ class ImageTranslatorBase(ABC):
 
     @abstractmethod
     def _train(
-            self, input_image, target_image, train_valid_ratio, callback_period, jinv
+            self, input_image, target_image, tile_size, train_valid_ratio, callback_period, jinv
     ):
         """This function supposed to take normalized input image only
         :param input_image:
@@ -88,6 +88,7 @@ class ImageTranslatorBase(ABC):
             target_image=None,
             batch_dims=None,
             channel_dims=None,
+            tile_size=None,
             train_valid_ratio=0.1,
             callback_period=3,
             jinv=None,
@@ -154,6 +155,7 @@ class ImageTranslatorBase(ABC):
             self._train(
                 normalised_input_image,
                 normalised_target_image,
+                tile_size=tile_size,
                 train_valid_ratio=train_valid_ratio,
                 callback_period=callback_period,
                 jinv=jinv,

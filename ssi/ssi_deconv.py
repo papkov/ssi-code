@@ -29,7 +29,7 @@ class SSIDeconvolution(PTCNNImageTranslator):
         self.bounds_loss = bounds_loss
         self.entropy = entropy
 
-    def _train(self, input_image, target_image, train_valid_ratio=0.1, callback_period=3, jinv=False):
+    def _train(self, input_image, target_image, tile_size=None, train_valid_ratio=0.1, callback_period=3, jinv=False):
 
         ndim = input_image.ndim-2
         num_channels = input_image.shape[1]
@@ -68,7 +68,7 @@ class SSIDeconvolution(PTCNNImageTranslator):
         elif ndim==3:
             self.psfconv = PSFConvolutionLayer3D(self.psf_kernel, num_channels=num_channels).to(self.device)
 
-        super()._train(input_image, target_image, train_valid_ratio, callback_period, jinv)
+        super()._train(input_image, target_image, tile_size, train_valid_ratio, callback_period, jinv)
 
 
     def _train_loop(self, data_loader, optimizer, loss_function):

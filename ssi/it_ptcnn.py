@@ -43,6 +43,7 @@ class PTCNNImageTranslator(ImageTranslatorBase):
             monitor=None,
             use_cuda=True,
             device_index=0,
+            max_tile_size: int = 1024,  # TODO: adjust based on available memory
     ):
         """
         Constructs an image translator using the pytorch deep learning library.
@@ -78,7 +79,7 @@ class PTCNNImageTranslator(ImageTranslatorBase):
         self.masking = masking
         self.masking_density = masking_density
         self.optimiser_class = ESAdam
-        self.max_tile_size = 1024  # TODO: adjust based on available memory
+        self.max_tile_size = max_tile_size
 
         self._stop_training_flag = False
 
@@ -86,6 +87,7 @@ class PTCNNImageTranslator(ImageTranslatorBase):
             self,
             input_image,
             target_image,
+            tile_size=None,
             train_valid_ratio=0.1,
             callback_period=3,
             jinv=False,
@@ -102,7 +104,10 @@ class PTCNNImageTranslator(ImageTranslatorBase):
         num_spatiotemp_dim = input_image.ndim - 2
 
         # tile size:
-        tile_size = min(self.max_tile_size, min(shape[2:]))
+        if tile_size is None:
+            # tile_size = min(self.max_tile_size, min(shape[2:]))
+            tile_size = tuple(min(self.max_tile_size, s) for s in shape[2:])
+            lprint(f"Estimated max tile size {tile_size}")
 
         # Decide on how many voxels to be used for validation:
         num_val_voxels = int(train_valid_ratio * input_image.size)
