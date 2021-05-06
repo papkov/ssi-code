@@ -3,7 +3,6 @@
 Test focal scan G-L PSF.
 """
 import numpy
-
 from utils.psf import MicroscopePSF
 
 

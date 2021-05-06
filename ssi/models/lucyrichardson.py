@@ -12,7 +12,7 @@ def lucy_richardson_loss(observed_image, candidate_image, psf_kernel, mask=None)
     convolved = F.conv2d(candidate_image, psf_kernel, padding=padding)
     kernel_psf_mirror = torch.flip(psf_kernel, (1, 2))
     loss = candidate_image * (
-            F.conv2d(observed_image / convolved, kernel_psf_mirror, padding=padding) - 1
+        F.conv2d(observed_image / convolved, kernel_psf_mirror, padding=padding) - 1
     )
 
     loss = loss.abs() * mask
@@ -22,7 +22,7 @@ def lucy_richardson_loss(observed_image, candidate_image, psf_kernel, mask=None)
 
 class LucyRichardson(nn.Module):
     def __init__(
-            self, psf_kernel, num_channels_in=1, num_channels_out=1, iterations=4, clip=True
+        self, psf_kernel, num_channels_in=1, num_channels_out=1, iterations=4, clip=True
     ):
         super().__init__()
 

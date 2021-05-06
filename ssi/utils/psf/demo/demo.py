@@ -22,7 +22,7 @@ def demo_xyz():
 
     with napari.gui_qt():
         viewer = napari.Viewer()
-        viewer.add_image(psf_xyz_array, name='fast_rz')
+        viewer.add_image(psf_xyz_array, name="fast_rz")
 
 
 demo_xyz()

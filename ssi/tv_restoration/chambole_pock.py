@@ -28,17 +28,17 @@
 from math import sqrt
 
 import numpy as np
-
 from tv_restoration.convo_operators import ConvolutionOperator
-from tv_restoration.image_operators import gradient, norm2sq, div, proj_l2, norm1
+from tv_restoration.image_operators import div, gradient, norm1, norm2sq, proj_l2
 
 VERBOSE = 1
 
 
 # ----
 
+
 def power_method(P, PT, data, n_it=10):
-    '''
+    """
     Calculates the norm of operator K = [grad, P],
     i.e the sqrt of the largest eigenvalue of K^T*K = -div(grad) + P^T*P :
         ||K|| = sqrt(lambda_max(K^T*K))
@@ -46,7 +46,7 @@ def power_method(P, PT, data, n_it=10):
     P : forward projection
     PT : back projection
     data : acquired sinogram
-    '''
+    """
     x = PT(data)
     for k in range(0, n_it):
         x = PT(P(x)) - div(gradient(x))
@@ -56,7 +56,7 @@ def power_method(P, PT, data, n_it=10):
 
 
 def chambolle_pock(P, PT, data, Lambda, L, n_it, return_energy=True):
-    '''
+    """
     Chambolle-Pock algorithm for the minimization of the objective function
         ||P*x - d||_2^2 + Lambda*TV(x)
 
@@ -66,7 +66,7 @@ def chambolle_pock(P, PT, data, Lambda, L, n_it, return_energy=True):
     L : norm of the operator [P, Lambda*grad] (see power_method)
     n_it : number of iterations
     return_energy: if True, an array containing the values of the objective function will be returned
-    '''
+    """
 
     sigma = 1.0 / L
     tau = 1.0 / L
@@ -77,7 +77,8 @@ def chambolle_pock(P, PT, data, Lambda, L, n_it, return_energy=True):
     x_tilde = 0 * x
     theta = 1.0
 
-    if return_energy: en = np.zeros(n_it)
+    if return_energy:
+        en = np.zeros(n_it)
     for k in range(0, n_it):
         # Update dual variables
         p = proj_l2(p + sigma * gradient(x_tilde), Lambda)
@@ -92,8 +93,11 @@ def chambolle_pock(P, PT, data, Lambda, L, n_it, return_energy=True):
             tv = norm1(gradient(x))
             energy = 1.0 * fidelity + Lambda * tv
             en[k] = energy
-            if (VERBOSE and k % 10 == 0):
-                print("[%d] : energy %e \t fidelity %e \t TV %e" % (k, energy, fidelity, tv))
+            if VERBOSE and k % 10 == 0:
+                print(
+                    "[%d] : energy %e \t fidelity %e \t TV %e"
+                    % (k, energy, fidelity, tv)
+                )
     if return_energy:
         return en, x
     else:

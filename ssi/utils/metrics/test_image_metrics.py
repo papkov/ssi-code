@@ -1,13 +1,13 @@
 import numpy
 import pytest
 
+from ssi.utils.io.datasets import add_noise, camera, normalise
 from ssi.utils.metrics.image_metrics import (
-    mutual_information,
     joint_information,
+    mutual_information,
     spectral_mutual_information,
     spectral_psnr,
 )
-from ssi.utils.io.datasets import camera, add_noise, normalise
 
 
 def test_spectral_psnr():
@@ -48,7 +48,7 @@ def test_normalised_mutual_information():
     )
 
     assert (
-            mutual_information(camera_image, camera_image_with_noise, normalised=True) < 1
+        mutual_information(camera_image, camera_image_with_noise, normalised=True) < 1
     )
 
 

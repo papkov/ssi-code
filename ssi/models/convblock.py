@@ -3,16 +3,16 @@ import torch.nn as nn
 
 class ConvBlock(nn.Module):
     def __init__(
-            self,
-            in_channels,
-            out_channels,
-            dropout=False,
-            norm=None,
-            residual=True,
-            activation='leakyrelu',
-            in_place_activation=True,
-            transpose=False,
-            reflectpad=True,
+        self,
+        in_channels,
+        out_channels,
+        dropout=False,
+        norm=None,
+        residual=True,
+        activation="leakyrelu",
+        in_place_activation=True,
+        transpose=False,
+        reflectpad=True,
     ):
 
         super(ConvBlock, self).__init__()
@@ -29,10 +29,10 @@ class ConvBlock(nn.Module):
         self.norm1 = None
         self.norm2 = None
         if norm is not None:
-            if norm == 'batch':
+            if norm == "batch":
                 self.norm1 = nn.BatchNorm2d(out_channels)
                 self.norm2 = nn.BatchNorm2d(out_channels)
-            elif norm == 'instance':
+            elif norm == "instance":
                 self.norm1 = nn.InstanceNorm2d(out_channels, affine=True)
                 self.norm2 = nn.InstanceNorm2d(out_channels, affine=True)
 
@@ -63,16 +63,16 @@ class ConvBlock(nn.Module):
                 padding=0 if self.reflectpad else 1,
             )
 
-        if self.activation == 'relu':
+        if self.activation == "relu":
             self.actfun1 = nn.ReLU(inplace=in_place_activation)
             self.actfun2 = nn.ReLU(inplace=in_place_activation)
-        elif self.activation == 'leakyrelu':
+        elif self.activation == "leakyrelu":
             self.actfun1 = nn.LeakyReLU(inplace=in_place_activation)
             self.actfun2 = nn.LeakyReLU(inplace=in_place_activation)
-        elif self.activation == 'elu':
+        elif self.activation == "elu":
             self.actfun1 = nn.ELU(inplace=in_place_activation)
             self.actfun2 = nn.ELU(inplace=in_place_activation)
-        elif self.activation == 'selu':
+        elif self.activation == "selu":
             self.actfun1 = nn.SELU(inplace=in_place_activation)
             self.actfun2 = nn.SELU(inplace=in_place_activation)
 
@@ -106,9 +106,9 @@ class ConvBlock(nn.Module):
             x = self.dropout2(x)
 
         if self.residual:
-            x[:, 0: min(ox.shape[1], x.shape[1]), :, :] += ox[
-                                                           :, 0: min(ox.shape[1], x.shape[1]), :, :
-                                                           ]
+            x[:, 0 : min(ox.shape[1], x.shape[1]), :, :] += ox[
+                :, 0 : min(ox.shape[1], x.shape[1]), :, :
+            ]
 
         if self.norm2:
             x = self.norm2(x)

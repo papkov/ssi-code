@@ -1,7 +1,7 @@
 import os
 import tempfile
 from os import makedirs
-from os.path import join, exists
+from os.path import exists, join
 from sys import platform
 
 
@@ -39,13 +39,13 @@ def get_cache_folder():
     cache_folder = None
 
     if platform == "linux" or platform == "linux2":
-        cache_folder = join(get_home_folder(), '.cache')
+        cache_folder = join(get_home_folder(), ".cache")
 
     elif platform == "darwin":
-        cache_folder = join(get_home_folder(), '/Library/Caches')
+        cache_folder = join(get_home_folder(), "/Library/Caches")
 
     elif platform == "win32":
-        cache_folder = join(get_home_folder(), os.getenv('LOCALAPPDATA'))
+        cache_folder = join(get_home_folder(), os.getenv("LOCALAPPDATA"))
 
     try:
         makedirs(cache_folder)

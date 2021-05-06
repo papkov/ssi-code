@@ -8,7 +8,9 @@ def fft_mirror(image):
     flipy = numpy.flip(image, axis=0)
     flipxy = numpy.flip(flipx, axis=0)
 
-    image_mirrored = numpy.block([[flipxy, flipy, flipxy], [flipx, image, flipx], [flipxy, flipy, flipxy]])
+    image_mirrored = numpy.block(
+        [[flipxy, flipy, flipxy], [flipx, image, flipx], [flipxy, flipy, flipxy]]
+    )
 
     h0 = scipy.signal.tukey(image_mirrored.shape[0], alpha=0.3)
     h1 = scipy.signal.tukey(image_mirrored.shape[1], alpha=0.3)
@@ -43,7 +45,7 @@ def radial_profile(data, center):
     return radialprofile
 
 
-def smooth(x, window_len=11, window='hanning', mode='valid'):
+def smooth(x, window_len=11, window="hanning", mode="valid"):
     """smooth the data using a window with requested size.
 
     This method is based on the convolution of a scaled window with the signal.
@@ -84,18 +86,20 @@ def smooth(x, window_len=11, window='hanning', mode='valid'):
     if window_len < 3:
         return x
 
-    if not window in ['flat', 'hanning', 'hamming', 'bartlett', 'blackman']:
-        raise ValueError("Window is on of 'flat', 'hanning', 'hamming', 'bartlett', 'blackman'")
+    if not window in ["flat", "hanning", "hamming", "bartlett", "blackman"]:
+        raise ValueError(
+            "Window is on of 'flat', 'hanning', 'hamming', 'bartlett', 'blackman'"
+        )
 
-    s = numpy.r_[x[window_len - 1:0:-1], x, x[-2:-window_len - 1:-1]]
+    s = numpy.r_[x[window_len - 1 : 0 : -1], x, x[-2 : -window_len - 1 : -1]]
     # print(len(s))
-    if window == 'flat':  # moving average
-        w = numpy.ones(window_len, 'd')
+    if window == "flat":  # moving average
+        w = numpy.ones(window_len, "d")
     else:
-        w = eval('numpy.' + window + '(window_len)')
+        w = eval("numpy." + window + "(window_len)")
 
     y = numpy.convolve(w / w.sum(), s, mode=mode)
-    y = y[(window_len // 2):-(window_len // 2)]
+    y = y[(window_len // 2) : -(window_len // 2)]
     return y
 
 
@@ -106,13 +110,19 @@ def resolution_estimate(image, dc_cutoff=0.05, otf_cutoff=0.5, smooth_window_len
 
     dc_cut_off_index = int(dc_cutoff * length / 2)
     otf_cut_off_index = int(otf_cutoff * length / 2)
-    noise_floor = 0.5 * numpy.median(spectrum_image[0:(length - otf_cut_off_index), :])
-    noise_floor += 0.5 * numpy.median(spectrum_image[:, 0:(length - otf_cut_off_index)])
+    noise_floor = 0.5 * numpy.median(
+        spectrum_image[0 : (length - otf_cut_off_index), :]
+    )
+    noise_floor += 0.5 * numpy.median(
+        spectrum_image[:, 0 : (length - otf_cut_off_index)]
+    )
 
     corrected_profile = smooth(spectrum_image_profile, smooth_window_length)
     corrected_profile = numpy.maximum(corrected_profile - noise_floor, 0)
 
-    noise_robust_std = numpy.max(numpy.abs(corrected_profile[otf_cut_off_index:]), axis=0)
+    noise_robust_std = numpy.max(
+        numpy.abs(corrected_profile[otf_cut_off_index:]), axis=0
+    )
 
     noise_cut_off_index = otf_cut_off_index
     for i in range(otf_cut_off_index, 0, -1):
@@ -121,9 +131,14 @@ def resolution_estimate(image, dc_cutoff=0.05, otf_cutoff=0.5, smooth_window_len
             noise_cut_off_index = i
             break
 
-    X = numpy.linspace(dc_cut_off_index, noise_cut_off_index, 1 + noise_cut_off_index - dc_cut_off_index)[..., numpy.newaxis]
-    y = corrected_profile[dc_cut_off_index:noise_cut_off_index + 1]
+    X = numpy.linspace(
+        dc_cut_off_index,
+        noise_cut_off_index,
+        1 + noise_cut_off_index - dc_cut_off_index,
+    )[..., numpy.newaxis]
+    y = corrected_profile[dc_cut_off_index : noise_cut_off_index + 1]
     from sklearn.linear_model import TheilSenRegressor
+
     reg = TheilSenRegressor(random_state=0).fit(X, y)
     # print(reg.coef_)
     # print(reg.intercept_)
@@ -131,7 +146,13 @@ def resolution_estimate(image, dc_cutoff=0.05, otf_cutoff=0.5, smooth_window_len
 
     resolution_limit = float(-reg.intercept_ / reg.coef_)
 
-    return spectrum_image, spectrum_image_profile, corrected_profile, resolution_limit,
+    return (
+        spectrum_image,
+        spectrum_image_profile,
+        corrected_profile,
+        resolution_limit,
+    )
+
 
 # def resolution_estimate_old(image, cutoff=0.5, smooth_window_length=17, threshold=0.5):
 #     spectrum_image, _ = spectrum(image, log=False)

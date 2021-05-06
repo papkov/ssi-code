@@ -29,15 +29,14 @@
 from __future__ import division
 
 import numpy as np
-
 from tv_restoration.convo_operators import ConvolutionOperator
-from tv_restoration.image_operators import mydot, grad_tv_smoothed, tv_smoothed, norm2sq
+from tv_restoration.image_operators import grad_tv_smoothed, mydot, norm2sq, tv_smoothed
 
 VERBOSE = True
 
 
 def conjugate_gradient_TV(P, PT, sino, Lambda, mu=1e-4, n_it=300):
-    '''
+    """
     Conjugate Gradient algorithm to minimize the objective function
         0.5*||P*x - d||_2^2 + Lambda*TV_mu (x)
 
@@ -47,7 +46,7 @@ def conjugate_gradient_TV(P, PT, sino, Lambda, mu=1e-4, n_it=300):
     Lambda : parameter weighting the TV regularization
     mu : parameter of Moreau-Yosida approximation of TV (small positive value)
     n_it : number of iterations
-    '''
+    """
 
     x = 0 * PT(sino)  # start from 0
     grad_f = -PT(sino)
@@ -78,7 +77,7 @@ def conjugate_gradient_TV(P, PT, sino, Lambda, mu=1e-4, n_it=300):
         # Stoping criterion
         if np.abs(alpha) < 1e-34:  # TODO : try other bounds
             print("Warning : minimum step reached, interrupting at iteration %d" % k)
-            break;
+            break
     return en, x
 
 
@@ -92,6 +91,7 @@ def cg_restoration(image, kernel, num_iterations=2500, lmbda=1e-7, mu=1e-4):
     en, restored_image = conjugate_gradient_TV(P, PT, image, lmbda, mu, num_iterations)
 
     return restored_image
+
 
 #
 # if __name__ == "__main__":

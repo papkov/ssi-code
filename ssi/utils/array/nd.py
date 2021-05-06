@@ -17,7 +17,7 @@ def nd_split_slices(array_shape, nb_slices, do_shuffle=False, margins=None):
     dim_width = array_shape[-1]
 
     for outer in nd_split_slices(
-            array_shape[:-1], nb_slices[:-1], do_shuffle=do_shuffle, margins=margins[:-1]
+        array_shape[:-1], nb_slices[:-1], do_shuffle=do_shuffle, margins=margins[:-1]
     ):
 
         n = nb_slices[-1]
@@ -87,9 +87,9 @@ def extract_tiles(arr, tile_size=8, extraction_step=1, flatten=False):
     indexing_strides = arr[slices].strides
 
     patch_indices_shape = (
-                                  (numpy.array(arr.shape) - numpy.array(tile_size))
-                                  // numpy.array(extraction_step)
-                          ) + 1
+        (numpy.array(arr.shape) - numpy.array(tile_size))
+        // numpy.array(extraction_step)
+    ) + 1
 
     shape = tuple(list(patch_indices_shape) + list(tile_size))
     strides = tuple(list(indexing_strides) + list(patch_strides))
@@ -97,6 +97,6 @@ def extract_tiles(arr, tile_size=8, extraction_step=1, flatten=False):
     patches = as_strided(arr, shape=shape, strides=strides)
 
     if flatten:
-        patches = patches.reshape((-1,) + patches.shape[-arr.ndim:])
+        patches = patches.reshape((-1,) + patches.shape[-arr.ndim :])
 
     return patches

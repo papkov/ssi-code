@@ -1,15 +1,15 @@
 import os
 import zipfile
 from enum import Enum
-from os.path import join, exists
+from os.path import exists, join
+
 import gdown
 import numpy
 import skimage
 from imageio import imread
 from numpy.random.mtrand import normal, uniform
 from scipy.ndimage import binary_dilation
-from scipy.signal import convolve
-from scipy.signal import convolve2d
+from scipy.signal import convolve, convolve2d
 from skimage.exposure import rescale_intensity
 from skimage.util import random_noise
 
@@ -17,8 +17,7 @@ from ssi.utils.io.folders import get_cache_folder
 from ssi.utils.log.log import lprint
 from ssi.utils.psf.simple_microscope_psf import SimpleMicroscopePSF
 
-
-datasets_folder = join(get_cache_folder(), 'data')
+datasets_folder = join(get_cache_folder(), "data")
 
 try:
     os.makedirs(datasets_folder)
@@ -28,14 +27,23 @@ except Exception:
 
 # Convenience methods to add noise and blur:
 
+
 def normalise(image):
     return rescale_intensity(
-        image.astype(numpy.float32), in_range='image', out_range=(0, 1)
+        image.astype(numpy.float32), in_range="image", out_range=(0, 1)
     )
 
 
-def add_poisson_gaussian_noise(image, alpha=5, sigma=0.01, sap=0.0, quant_bits=8, dtype=numpy.float32, clip=True, fix_seed=True
-                               ):
+def add_poisson_gaussian_noise(
+    image,
+    alpha=5,
+    sigma=0.01,
+    sap=0.0,
+    quant_bits=8,
+    dtype=numpy.float32,
+    clip=True,
+    fix_seed=True,
+):
     if fix_seed:
         numpy.random.seed(0)
     rnd = normal(size=image.shape)
@@ -50,7 +58,7 @@ def add_poisson_gaussian_noise(image, alpha=5, sigma=0.01, sap=0.0, quant_bits=8
 
 
 def add_noise(
-        image, intensity=5, variance=0.01, sap=0.0, dtype=numpy.float32, clip=True
+    image, intensity=5, variance=0.01, sap=0.0, dtype=numpy.float32, clip=True
 ):
     numpy.random.seed(0)
     noisy = image
@@ -63,17 +71,24 @@ def add_noise(
 
 
 def add_blur_2d(image, k=17, sigma=5, multi_channel=False):
-    from numpy import pi, exp, sqrt
+    from numpy import exp, pi, sqrt
+
     #  generate a (2k+1)x(2k+1) gaussian kernel with mean=0 and sigma = s
-    probs = [exp(-z * z / (2 * sigma * sigma)) / sqrt(2 * pi * sigma * sigma) for z in range(-k, k + 1)]
+    probs = [
+        exp(-z * z / (2 * sigma * sigma)) / sqrt(2 * pi * sigma * sigma)
+        for z in range(-k, k + 1)
+    ]
     psf_kernel = numpy.outer(probs, probs)
 
     def conv(_image):
-        return convolve2d(_image, psf_kernel, mode='same').astype(numpy.float32)
+        return convolve2d(_image, psf_kernel, mode="same").astype(numpy.float32)
 
     if multi_channel:
         image = numpy.moveaxis(image.copy(), -1, 0)
-        return numpy.moveaxis(numpy.stack([conv(channel) for channel in image]), 0, -1), psf_kernel
+        return (
+            numpy.moveaxis(numpy.stack([conv(channel) for channel in image]), 0, -1),
+            psf_kernel,
+        )
     else:
         return conv(image), psf_kernel
 
@@ -85,11 +100,14 @@ def add_microscope_blur_2d(image, dz=0, multi_channel=False):
     psf_kernel /= psf_kernel.sum()
 
     def conv(_image):
-        return convolve2d(_image, psf_kernel, mode='same').astype(numpy.float32)
+        return convolve2d(_image, psf_kernel, mode="same").astype(numpy.float32)
 
     if multi_channel:
         image = numpy.moveaxis(image.copy(), -1, 0)
-        return numpy.moveaxis(numpy.stack([conv(channel) for channel in image]), 0, -1), psf_kernel
+        return (
+            numpy.moveaxis(numpy.stack([conv(channel) for channel in image]), 0, -1),
+            psf_kernel,
+        )
     else:
         return conv(image), psf_kernel
 
@@ -99,7 +117,7 @@ def add_microscope_blur_3d(image):
     psf_xyz_array = psf.generate_xyz_psf(dxy=0.406, dz=0.406, xy_size=17, z_size=17)
     psf_kernel = psf_xyz_array
     psf_kernel /= psf_kernel.sum()
-    return convolve(image, psf_kernel, mode='same'), psf_kernel
+    return convolve(image, psf_kernel, mode="same"), psf_kernel
 
 
 # Example datasets
@@ -158,27 +176,27 @@ class examples_single(Enum):
         return array
 
     # XY natural images (2D monochrome):
-    generic_crowd = ('13UHK8MjhBviv31mAW2isdG4G-aGaNJIj', 'crowd.tif')
-    generic_mandrill = ('1B33ELiFuCV0OJ6IHh7Ix9lvImwI_QkR-', 'mandrill.tif')
-    generic_newyork = ('15Nuu_NU3iNuoPRmpFbrGIY0VT0iCmuKu', 'newyork.png')
-    generic_lizard = ('1GUc6jy5QH5DaiUskCrPrf64YBOLzT6j1', 'lizard.png')
-    generic_pollen = ('1S0o2NWtD1shB5DfGRIqOFxTLOi8cHQD-', 'pollen.png')
-    generic_scafoldings = ('1ZiWhHnkuaQH-BS8B71y00wkN1Ylo38nY', 'scafoldings.png')
-    generic_andromeda = ('1Zl3DtkwUlZSbvpxGILexiIoLW1JOdJh8', 'andromeda.png')
+    generic_crowd = ("13UHK8MjhBviv31mAW2isdG4G-aGaNJIj", "crowd.tif")
+    generic_mandrill = ("1B33ELiFuCV0OJ6IHh7Ix9lvImwI_QkR-", "mandrill.tif")
+    generic_newyork = ("15Nuu_NU3iNuoPRmpFbrGIY0VT0iCmuKu", "newyork.png")
+    generic_lizard = ("1GUc6jy5QH5DaiUskCrPrf64YBOLzT6j1", "lizard.png")
+    generic_pollen = ("1S0o2NWtD1shB5DfGRIqOFxTLOi8cHQD-", "pollen.png")
+    generic_scafoldings = ("1ZiWhHnkuaQH-BS8B71y00wkN1Ylo38nY", "scafoldings.png")
+    generic_andromeda = ("1Zl3DtkwUlZSbvpxGILexiIoLW1JOdJh8", "andromeda.png")
 
     # Characters (2D monochrome, inverted):
-    generic_characters = ('1ZWkHFI2iddKa9qv6tft4QZlCoDS5fLMK', 'characters.jpg')
+    generic_characters = ("1ZWkHFI2iddKa9qv6tft4QZlCoDS5fLMK", "characters.jpg")
 
 
 def download_from_gdrive(
-        id, name, dest_folder=datasets_folder, overwrite=False, unzip=False
+    id, name, dest_folder=datasets_folder, overwrite=False, unzip=False
 ):
     try:
         os.makedirs(dest_folder)
     except Exception:
         pass
 
-    url = f'https://drive.google.com/uc?id={id}'
+    url = f"https://drive.google.com/uc?id={id}"
     output_path = join(dest_folder, name)
     if overwrite or not exists(output_path):
         lprint(f"Downloading file {output_path} as it does not exist yet.")
@@ -186,7 +204,7 @@ def download_from_gdrive(
 
         if unzip:
             lprint(f"Unzipping file {output_path}...")
-            zip_ref = zipfile.ZipFile(output_path, 'r')
+            zip_ref = zipfile.ZipFile(output_path, "r")
             zip_ref.extractall(dest_folder)
             zip_ref.close()
             # os.remove(output_path)

@@ -5,13 +5,11 @@ from ssi.utils.psf.microscope_psf import MicroscopePSF
 
 class SimpleMicroscopePSF(MicroscopePSF):
     """
-        Simple Microscope PSF: no cover-slip, i.e. Richards & Wolf as a degenerate case of Gibson & Lani
+    Simple Microscope PSF: no cover-slip, i.e. Richards & Wolf as a degenerate case of Gibson & Lani
     """
 
     def __init__(self, M=16, NA=0.8, n=1.33, wd=3000):
-        """
-
-        """
+        """"""
         super().__init__()
 
         # Microscope parameters.

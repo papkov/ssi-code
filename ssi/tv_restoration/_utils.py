@@ -37,7 +37,8 @@ def my_imshow(img_list, shape=None, cmap=None, nocbar=False):
         is_array = True
         plt.figure()
         plt.imshow(img_list, interpolation="nearest", cmap=cmap)
-        if nocbar is False: plt.colorbar()
+        if nocbar is False:
+            plt.colorbar()
         plt.show()
 
     elif shape:
@@ -45,16 +46,20 @@ def my_imshow(img_list, shape=None, cmap=None, nocbar=False):
         # ~ if num > 1 and is_array:
         # ~ print('Warning (my_imshow): requestred to show %d images but only one image was provided' %(num))
         if num != len(img_list):
-            raise Exception('ERROR (my_imshow): requestred to show %d images but %d images were actually provided' % (num, len(img_list)))
+            raise Exception(
+                "ERROR (my_imshow): requestred to show %d images but %d images were actually provided"
+                % (num, len(img_list))
+            )
 
         plt.figure()
         for i in range(0, num):
             curr = str(shape + (i + 1,))
-            curr = curr[1:-1].replace(',', '').replace(' ', '')
+            curr = curr[1:-1].replace(",", "").replace(" ", "")
             if i == 0:
                 ax0 = plt.subplot(curr)
             else:
                 plt.subplot(curr, sharex=ax0, sharey=ax0)
             plt.imshow(img_list[i], interpolation="nearest", cmap=cmap)
-            if nocbar is False: plt.colorbar()
+            if nocbar is False:
+                plt.colorbar()
         plt.show()

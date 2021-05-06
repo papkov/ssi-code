@@ -2,6 +2,7 @@ import locale
 import math
 import sys
 import time
+
 from decorator import contextmanager
 
 
@@ -14,28 +15,28 @@ class Log:
     override_test_exclusion = False
 
     # Define special characters:
-    __vl__ = '│'  # 'Vertical Line'
-    __br__ = '├'  # 'Branch Right'
-    __bd__ = '├╗'  # 'Branch Down'
-    __tb__ = '┴'  # 'Terminate Branch'
-    __la__ = '«'  # 'Left Arrow'
+    __vl__ = "│"  # 'Vertical Line'
+    __br__ = "├"  # 'Branch Right'
+    __bd__ = "├╗"  # 'Branch Down'
+    __tb__ = "┴"  # 'Terminate Branch'
+    __la__ = "«"  # 'Left Arrow'
 
     #  Windows terminal is dumb. We can't use our fancy characters from Yesteryears, sad:
     if (
-            locale.getpreferredencoding() == "US-ASCII"
-            or locale.getpreferredencoding() == "cp1252"
+        locale.getpreferredencoding() == "US-ASCII"
+        or locale.getpreferredencoding() == "cp1252"
     ):
-        __vl__ = '|'
-        __br__ = '|->'
-        __bd__ = '|\ '  # noqa: W605
-        __tb__ = '-'
-        __la__ = '<<'
+        __vl__ = "|"
+        __br__ = "|->"
+        __bd__ = "|\ "  # noqa: W605
+        __tb__ = "-"
+        __la__ = "<<"
 
     def __init__(self):
         return
 
     @staticmethod
-    def native_print(*args, sep=' ', end='\n', file=sys.__stdout__):
+    def native_print(*args, sep=" ", end="\n", file=sys.__stdout__):
         if Log.enable_output:
             print(*args, sep=sep, end=end, file=file)
 
@@ -46,7 +47,7 @@ class Log:
         Log.max_depth = max(0, max_depth - 1)
 
 
-def lprint(*args, sep=' ', end='\n'):
+def lprint(*args, sep=" ", end="\n"):
     if not Log.override_test_exclusion:
         for arg in sys.argv:
             if "test" in arg:
@@ -54,7 +55,7 @@ def lprint(*args, sep=' ', end='\n'):
 
     if Log.depth <= Log.max_depth:
         level = min(Log.max_depth, Log.depth)
-        Log.native_print(Log.__vl__ * int(level) + Log.__br__ + ' ', end='')
+        Log.native_print(Log.__vl__ * int(level) + Log.__br__ + " ", end="")
         Log.native_print(*args, sep=sep, end=end)
 
 
@@ -68,13 +69,13 @@ def lsection(section_header: str):
 
     if Log.depth + 1 <= Log.max_depth:
         Log.native_print(
-            Log.__vl__ * Log.depth + Log.__bd__ + ' ' + section_header
+            Log.__vl__ * Log.depth + Log.__bd__ + " " + section_header
         )  # ≡
     elif Log.depth + 1 == Log.max_depth + 1:
         Log.native_print(
             Log.__vl__ * Log.depth
             + Log.__br__
-            + f'= {section_header} (log tree truncated here)'
+            + f"= {section_header} (log tree truncated here)"
         )
 
     Log.depth += 1
@@ -99,35 +100,35 @@ def lsection(section_header: str):
                     Log.__vl__ * (Log.depth + 1)
                     + Log.__tb__
                     + Log.__la__
-                    + f' {elapsed * 1000 * 1000:.2f} microseconds'
+                    + f" {elapsed * 1000 * 1000:.2f} microseconds"
                 )
             elif elapsed < 1:
                 Log.native_print(
                     Log.__vl__ * (Log.depth + 1)
                     + Log.__tb__
                     + Log.__la__
-                    + f' {elapsed * 1000:.2f} milliseconds'
+                    + f" {elapsed * 1000:.2f} milliseconds"
                 )
             elif elapsed < 60:
                 Log.native_print(
                     Log.__vl__ * (Log.depth + 1)
                     + Log.__tb__
                     + Log.__la__
-                    + f' {elapsed:.2f} seconds'
+                    + f" {elapsed:.2f} seconds"
                 )
             elif elapsed < 60 * 60:
                 Log.native_print(
                     Log.__vl__ * (Log.depth + 1)
                     + Log.__tb__
                     + Log.__la__
-                    + f' {elapsed / 60:.2f} minutes'
+                    + f" {elapsed / 60:.2f} minutes"
                 )
             elif elapsed < 24 * 60 * 60:
                 Log.native_print(
                     Log.__vl__ * (Log.depth + 1)
                     + Log.__tb__
                     + Log.__la__
-                    + f' {elapsed / (60 * 60):.2f} hours'
+                    + f" {elapsed / (60 * 60):.2f} hours"
                 )
 
         Log.native_print(Log.__vl__ * (Log.depth + 1))

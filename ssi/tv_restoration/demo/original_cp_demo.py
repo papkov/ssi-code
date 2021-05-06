@@ -1,6 +1,6 @@
-from tv_restoration.chambole_pock import power_method, chambolle_pock
-from tv_restoration.convo_operators import gaussian1D, ConvolutionOperator
-from utils.io.datasets import normalise, camera, add_noise
+from tv_restoration.chambole_pock import chambolle_pock, power_method
+from tv_restoration.convo_operators import ConvolutionOperator, gaussian1D
+from utils.io.datasets import add_noise, camera, normalise
 
 
 def original_demo():
@@ -9,7 +9,7 @@ def original_demo():
 
     # Init.
     # ------
-    image = normalise(camera().astype('f'))
+    image = normalise(camera().astype("f"))
 
     kern = gaussian1D(2.6)
     K = ConvolutionOperator(kern)
@@ -23,6 +23,7 @@ def original_demo():
     en, deconvolved_image = chambolle_pock(P, PT, blurred_image, beta, L, n_it)
 
     import matplotlib.pyplot as plt
+
     plt.figure()
     plt.plot(en)
     plt.show()
@@ -31,9 +32,9 @@ def original_demo():
 
     with napari.gui_qt():
         viewer = napari.Viewer()
-        viewer.add_image(image, name='image')
-        viewer.add_image(blurred_image, name='blurred')
-        viewer.add_image(deconvolved_image, name='deconvolved_image')
+        viewer.add_image(image, name="image")
+        viewer.add_image(blurred_image, name="blurred")
+        viewer.add_image(deconvolved_image, name="deconvolved_image")
 
 
 original_demo()

@@ -24,19 +24,19 @@ class ESAdam(Adam):
         loss = super().step(closure)
 
         for group in self.param_groups:
-            for p in group['params']:
+            for p in group["params"]:
                 if p.grad is None:
                     continue
                 grad: torch.Tensor = p.grad.data
                 if grad.is_sparse:
                     continue
 
-                step_size = group['lr']
+                step_size = group["lr"]
 
                 p.data += (
-                        step_size
-                        * (self.start_noise_level / (1 + self.step_counter))
-                        * (torch.randn_like(p.data))
+                    step_size
+                    * (self.start_noise_level / (1 + self.step_counter))
+                    * (torch.randn_like(p.data))
                 )
 
         self.step_counter += 1

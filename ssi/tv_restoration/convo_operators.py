@@ -33,29 +33,32 @@ from scipy.ndimage import filters
 
 def gaussian1D(sigma):
     ksize = int(ceil(8 * sigma + 1))
-    if (ksize % 2 == 0): ksize += 1
+    if ksize % 2 == 0:
+        ksize += 1
     t = np.arange(ksize) - (ksize - 1.0) / 2.0
-    g = np.exp(-(t / sigma) ** 2 / 2.0).astype('f')
-    g /= g.sum(dtype='f')
+    g = np.exp(-((t / sigma) ** 2) / 2.0).astype("f")
+    g /= g.sum(dtype="f")
     return g
 
 
-class ConvolutionOperator():
+class ConvolutionOperator:
     def __init__(self, kernel, initfrom=None):
         if initfrom is None:
             self.kernel = kernel
             self.is2D = True if len(kernel.shape) > 1 else False
-            self.mode = 'constant'  # {'reflect', 'constant', 'nearest', 'mirror', 'wrap'}
+            self.mode = (
+                "constant"  # {'reflect', 'constant', 'nearest', 'mirror', 'wrap'}
+            )
         else:
             self.kernel = np.copy(initfrom.kernel)
             self.is2D = initfrom.is2D
             self.mode = initfrom.mode
 
     def __mul__(self, img):
-        '''
+        """
         do the actual convolution.
         If the kernel is 1D, a separable convolution is done.
-        '''
+        """
         if self.is2D:
             return filters.convolve(img, self.kernel, mode=self.mode)
         else:

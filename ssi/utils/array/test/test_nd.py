@@ -1,11 +1,7 @@
 import numpy
 from skimage.data import binary_blobs
 
-from ssi.utils.array.nd import (
-    nd_split_slices,
-    remove_margin_slice,
-    extract_tiles,
-)
+from ssi.utils.array.nd import extract_tiles, nd_split_slices, remove_margin_slice
 
 
 def test_nd_split_slices():
@@ -42,7 +38,7 @@ def test_nd_split_slices_with_margins():
     array_target = numpy.zeros(array_shape, dtype=numpy.int64)
 
     for slice_tuple, slice_margin_tuple in zip(
-            slice_tuple_list, slice_margin_tuple_list
+        slice_tuple_list, slice_margin_tuple_list
     ):
         sliced_array_with_margin = array_source[slice_margin_tuple]
         remove_margin_slice_tuple = remove_margin_slice(

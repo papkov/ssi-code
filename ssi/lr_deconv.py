@@ -8,12 +8,12 @@ from ssi.utils.offcore.offcore import offcore_array
 
 class ImageTranslatorLRDeconv(ImageTranslatorBase):
     """
-        Lucy Richardson Deconvolution
+    Lucy Richardson Deconvolution
 
     """
 
     def __init__(
-            self, psf_kernel, max_num_iterations=50, clip=True, backend='scipy', **kwargs
+        self, psf_kernel, max_num_iterations=50, clip=True, backend="scipy", **kwargs
     ):
         """Constructs a Lucy Richardson deconvolution image translator.
 
@@ -29,7 +29,7 @@ class ImageTranslatorLRDeconv(ImageTranslatorBase):
         self.__debug_allocation = False
 
         if self.padding_mode is None:
-            self.padding_mode = 'reflect'
+            self.padding_mode = "reflect"
 
         self.max_voxels_per_tile = 512 ** 3
 
@@ -42,7 +42,7 @@ class ImageTranslatorLRDeconv(ImageTranslatorBase):
         # TODO: this is a rough estimate, it is not cler how much is really needed...
         memory_needed = 6 * image.size * image.dtype.itemsize
 
-        if self.backend == 'cupy' or self.backend == 'scipy-cupy':
+        if self.backend == "cupy" or self.backend == "scipy-cupy":
             from cupy.cuda.device import Device
 
             default_device = Device()
@@ -51,7 +51,7 @@ class ImageTranslatorLRDeconv(ImageTranslatorBase):
         return memory_needed, memory_available
 
     def _train(
-            self, input_image, target_image, train_valid_ratio, callback_period, jinv
+        self, input_image, target_image, train_valid_ratio, callback_period, jinv
     ):
         pass
         # we need to figure out what to do here...
@@ -120,7 +120,7 @@ class ImageTranslatorLRDeconv(ImageTranslatorBase):
                     convolved = convolve_method(
                         padded_candidate_deconvolved_image,
                         self.psf_kernel,
-                        mode='valid' if self.padding else 'same',
+                        mode="valid" if self.padding else "same",
                     )
 
                     convolved[convolved == 0] = 1
@@ -137,7 +137,7 @@ class ImageTranslatorLRDeconv(ImageTranslatorBase):
                     multiplicative_correction = convolve_method(
                         relative_blur,
                         self.psf_kernel_mirror,
-                        mode='valid' if self.padding else 'same',
+                        mode="valid" if self.padding else "same",
                     )
 
                     self._debug_allocation(f"after second convolution")
@@ -160,31 +160,31 @@ class ImageTranslatorLRDeconv(ImageTranslatorBase):
 
     def _convert_array_format_in(self, input_image):
         if (
-                self.backend == 'scipy'
-                or self.backend == 'gputools'
-                or self.backend == "scipy-cupy"
+            self.backend == "scipy"
+            or self.backend == "gputools"
+            or self.backend == "scipy-cupy"
         ):
             return input_image
-        elif self.backend == 'cupy':
+        elif self.backend == "cupy":
             import cupy
 
             return cupy.asarray(input_image)
 
     def _convert_array_format_out(self, output_image):
         if (
-                self.backend == 'scipy'
-                or self.backend == 'gputools'
-                or self.backend == "scipy-cupy"
+            self.backend == "scipy"
+            or self.backend == "gputools"
+            or self.backend == "scipy-cupy"
         ):
             return output_image
-        elif self.backend == 'cupy':
+        elif self.backend == "cupy":
             import cupy
 
             return cupy.asnumpy(output_image)
 
     def _get_convolution_method(self, input_image, psf_kernel):
 
-        if self.backend == 'scipy':
+        if self.backend == "scipy":
             lprint("Using scipy backend.")
             from scipy.signal import convolve
 
@@ -193,21 +193,21 @@ class ImageTranslatorLRDeconv(ImageTranslatorBase):
         elif self.backend == "scipy-cupy":
             try:
                 lprint("Attempting to use scipy-cupy backend.")
-                import scipy
                 import cupy
+                import scipy
 
                 scipy.fft.set_backend(cupy.fft)
-                self.backend = 'scipy'
+                self.backend = "scipy"
                 lprint("Succeeded to use scipy-cupy backend.")
                 return self._get_convolution_method(input_image, psf_kernel)
             except Exception:
                 track = traceback.format_exc()
                 lprint(track)
                 lprint("Failed to use scipy-cupy backend.")
-                self.backend = 'cupy'
+                self.backend = "cupy"
                 return self._get_convolution_method(input_image, psf_kernel)
 
-        elif self.backend == 'gputools':
+        elif self.backend == "gputools":
             try:
                 lprint("Attempting to use gputools backend.")
                 # testing if gputools works:
@@ -234,15 +234,14 @@ class ImageTranslatorLRDeconv(ImageTranslatorBase):
                 lprint("Failed to use gputools backend.")
                 pass
 
-        elif self.backend == 'cupy':
+        elif self.backend == "cupy":
             try:
                 lprint("Attempting to use cupy backend.")
                 # try:
                 # testing if gputools works:
-                import cupyx.scipy.ndimage
-
                 # try something simple and see if it crashes...
                 import cupy
+                import cupyx.scipy.ndimage
 
                 data = cupy.ones((30, 40, 50))
                 h = cupy.ones((10, 11, 12))
@@ -252,7 +251,7 @@ class ImageTranslatorLRDeconv(ImageTranslatorBase):
                 self.padding = False
 
                 def cupy_convolve(in1, in2, mode=None, method=None):
-                    return cupyx.scipy.ndimage.convolve(in1, in2, mode='reflect')
+                    return cupyx.scipy.ndimage.convolve(in1, in2, mode="reflect")
 
                 lprint("Succeeded to use cupy backend.")
                 if psf_kernel.size > 500:
@@ -264,7 +263,7 @@ class ImageTranslatorLRDeconv(ImageTranslatorBase):
                 track = traceback.format_exc()
                 lprint(track)
                 lprint("Failed to use cupy backend, trying gputools")
-                self.backend = 'gputools'
+                self.backend = "gputools"
                 return self._get_convolution_method(input_image, psf_kernel)
 
         lprint("Faling back to scipy backend.")
@@ -275,11 +274,11 @@ class ImageTranslatorLRDeconv(ImageTranslatorBase):
         return convolve
 
     def _get_pad_method(self, input_image):
-        if self.backend == 'scipy' or self.backend == 'scipy-cupy':
+        if self.backend == "scipy" or self.backend == "scipy-cupy":
             import numpy
 
             return numpy.pad
-        elif self.backend == 'cupy':
+        elif self.backend == "cupy":
             import cupy
 
             return cupy.pad
@@ -341,7 +340,7 @@ class ImageTranslatorLRDeconv(ImageTranslatorBase):
 
     def _debug_allocation(self, info):
         if self.__debug_allocation:
-            if self.backend == 'cupy':
+            if self.backend == "cupy":
                 import cupy
 
                 lprint(

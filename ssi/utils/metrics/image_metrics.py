@@ -3,8 +3,7 @@ import math
 import numpy
 from numpy.linalg import norm
 from scipy.fft import dct
-from skimage.metrics import peak_signal_noise_ratio
-from skimage.metrics import structural_similarity
+from skimage.metrics import peak_signal_noise_ratio, structural_similarity
 
 
 def ssim(image_a, image_b):
@@ -103,7 +102,7 @@ def mutual_info_from_contingency(contingency):
     )
     log_outer = -numpy.log2(outer) + numpy.log2(pi.sum()) + numpy.log2(pj.sum())
     mi = (
-            contingency_nm * (log_contingency_nm - numpy.log2(contingency_sum))
-            + contingency_nm * log_outer
+        contingency_nm * (log_contingency_nm - numpy.log2(contingency_sum))
+        + contingency_nm * log_outer
     )
     return mi.sum()

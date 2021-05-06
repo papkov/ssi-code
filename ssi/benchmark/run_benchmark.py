@@ -1,21 +1,31 @@
 import csv
 import os
 import time
-from os.path import join, isfile, exists
+from os.path import exists, isfile, join
+
 import matplotlib
 import numpy
-from PIL.Image import fromarray
 from imageio import imread
+from PIL.Image import fromarray
 from skimage.transform import resize
 
 from ssi.benchmark.spectral import spectrum
-from ssi.ssi_deconv import SSIDeconvolution
 from ssi.lr_deconv import ImageTranslatorLRDeconv
 from ssi.models.unet import UNet
+from ssi.ssi_deconv import SSIDeconvolution
 from ssi.tv_restoration.chambole_pock import cp_restoration
 from ssi.tv_restoration.conjugate_gradient import cg_restoration
-from ssi.utils.io.datasets import normalise, add_microscope_blur_2d, add_poisson_gaussian_noise
-from ssi.utils.metrics.image_metrics import psnr, ssim, mutual_information, spectral_mutual_information
+from ssi.utils.io.datasets import (
+    add_microscope_blur_2d,
+    add_poisson_gaussian_noise,
+    normalise,
+)
+from ssi.utils.metrics.image_metrics import (
+    mutual_information,
+    psnr,
+    spectral_mutual_information,
+    ssim,
+)
 
 
 def save_png(filepath, image):
@@ -32,17 +42,17 @@ def restore_ssi(image, psf_kernel, masking=True):
         patience=300,
         batch_size=8,
         learning_rate=0.01,
-        normaliser_type='identity',
+        normaliser_type="identity",
         psf_kernel=psf_kernel,
         model_class=UNet,
         masking=True,
         masking_density=0.05,
-        loss='l2',
+        loss="l2",
         bounds_loss=0.1,
         sharpening=0,
         entropy=0,
         broaden_psf=1,
-        num_channels=3 if image.ndim == 3 else 1
+        num_channels=3 if image.ndim == 3 else 1,
     )
 
     channel_dims = (False, False, True) if image.ndim == 3 else None
@@ -101,11 +111,9 @@ def restore_lr_(image, psf_kernel, num_iterations):
 
 def restore_tv_cg(image, psf_kernel):
     start = time.time()
-    restored_image = cg_restoration(image,
-                                    kernel=psf_kernel,
-                                    num_iterations=100,
-                                    lmbda=4.5e-3,
-                                    mu=1e-10)
+    restored_image = cg_restoration(
+        image, kernel=psf_kernel, num_iterations=100, lmbda=4.5e-3, mu=1e-10
+    )
     stop = time.time()
 
     inference_time = stop - start
@@ -119,10 +127,9 @@ def restore_tv_cg(image, psf_kernel):
 
 def restore_tv_cp(image, psf_kernel):
     start = time.time()
-    restored_image = cp_restoration(image,
-                                    kernel=psf_kernel,
-                                    num_iterations=200,
-                                    beta=2.5e-3)
+    restored_image = cp_restoration(
+        image, kernel=psf_kernel, num_iterations=200, beta=2.5e-3
+    )
     stop = time.time()
 
     inference_time = stop - start
@@ -140,20 +147,26 @@ def benchmark_on_image(run_name, folder, image_name, image, methods):
 
     image = normalise(image.astype(numpy.float32))
 
-    gt_numpy_filepath = join(join(folder, 'gt_numpy'), f'{image_name}' + '.npy')
+    gt_numpy_filepath = join(join(folder, "gt_numpy"), f"{image_name}" + ".npy")
     numpy.save(gt_numpy_filepath, image)
 
-    blurred_image, psf_kernel = add_microscope_blur_2d(image, multi_channel=image.ndim == 3)
+    blurred_image, psf_kernel = add_microscope_blur_2d(
+        image, multi_channel=image.ndim == 3
+    )
 
-    noisy_blurred_image = add_poisson_gaussian_noise(blurred_image, alpha=0.001, sigma=0.1, sap=0.01, quant_bits=10)
+    noisy_blurred_image = add_poisson_gaussian_noise(
+        blurred_image, alpha=0.001, sigma=0.1, sap=0.01, quant_bits=10
+    )
 
-    blurrynoisy_numpy_filepath = join(join(folder, 'blurrynoisy_numpy'), f'{image_name}' + '.npy')
+    blurrynoisy_numpy_filepath = join(
+        join(folder, "blurrynoisy_numpy"), f"{image_name}" + ".npy"
+    )
     numpy.save(blurrynoisy_numpy_filepath, noisy_blurred_image)
 
-    blurry_filepath = join(join(folder, 'blurry'), image_name)
+    blurry_filepath = join(join(folder, "blurry"), image_name)
     save_png(blurry_filepath, blurred_image)
 
-    blurrynoisy_filepath = join(join(folder, 'blurrynoisy'), image_name)
+    blurrynoisy_filepath = join(join(folder, "blurrynoisy"), image_name)
     save_png(blurrynoisy_filepath, noisy_blurred_image)
 
     method_names = [method.__name__ for method in methods]
@@ -166,20 +179,33 @@ def benchmark_on_image(run_name, folder, image_name, image, methods):
 
         for restore in methods:
 
-            restored_cached_filepath = join(join(folder, 'restored_cache_numpy'), f'{run_name}_{restore.__name__}_' + image_name + '.npy')
+            restored_cached_filepath = join(
+                join(folder, "restored_cache_numpy"),
+                f"{run_name}_{restore.__name__}_" + image_name + ".npy",
+            )
 
             if exists(restored_cached_filepath):
-                print(f"File: {restored_cached_filepath} does exists: skipping restoration.")
+                print(
+                    f"File: {restored_cached_filepath} does exists: skipping restoration."
+                )
                 restored_image = numpy.load(restored_cached_filepath)
             else:
-                print(f"File: {restored_cached_filepath} does not exists, restoration started.")
-                restored_image, train_time, inf_time = restore(noisy_blurred_image, psf_kernel)
+                print(
+                    f"File: {restored_cached_filepath} does not exists, restoration started."
+                )
+                restored_image, train_time, inf_time = restore(
+                    noisy_blurred_image, psf_kernel
+                )
                 numpy.save(restored_cached_filepath, restored_image)
-                timming_file.write(f"{image_name}\t{restore.__name__}\t{train_time}\t{inf_time}\n")
+                timming_file.write(
+                    f"{image_name}\t{restore.__name__}\t{train_time}\t{inf_time}\n"
+                )
 
             restored_image_list.append(restored_image)
 
-            restored_filepath = join(join(folder, 'restored'), f'{run_name}_{restore.__name__}_' + image_name)
+            restored_filepath = join(
+                join(folder, "restored"), f"{run_name}_{restore.__name__}_" + image_name
+            )
             save_png(restored_filepath, restored_image)
 
     # We compute scores:
@@ -193,12 +219,20 @@ def benchmark_on_image(run_name, folder, image_name, image, methods):
         noisy_blurred_psnr_value = psnr(image, noisy_blurred_image)
         noisy_blurred_ssim_value = ssim(image, noisy_blurred_image)
         noisy_blurred_mi_value = mutual_information(image, noisy_blurred_image)
-        noisy_blurred_smi_value = spectral_mutual_information(image, noisy_blurred_image)
+        noisy_blurred_smi_value = spectral_mutual_information(
+            image, noisy_blurred_image
+        )
 
-        scores_file.write(f"{image_name}\tblurry\t{blurred_psnr_value}\t{blurred_ssim_value}\t{blurred_mi_value}\t{blurred_smi_value}\n")
-        scores_file.write(f"{image_name}\tnoisy&blurred\t{noisy_blurred_psnr_value}\t{noisy_blurred_ssim_value}\t{noisy_blurred_mi_value}\t{noisy_blurred_smi_value}\n")
+        scores_file.write(
+            f"{image_name}\tblurry\t{blurred_psnr_value}\t{blurred_ssim_value}\t{blurred_mi_value}\t{blurred_smi_value}\n"
+        )
+        scores_file.write(
+            f"{image_name}\tnoisy&blurred\t{noisy_blurred_psnr_value}\t{noisy_blurred_ssim_value}\t{noisy_blurred_mi_value}\t{noisy_blurred_smi_value}\n"
+        )
 
-        print("Below in order: PSNR, norm spectral mutual info, norm mutual info, SSIM: ")
+        print(
+            "Below in order: PSNR, norm spectral mutual info, norm mutual info, SSIM: "
+        )
         printscore(
             "blurry image                       \t\t: ",
             blurred_psnr_value,
@@ -216,7 +250,10 @@ def benchmark_on_image(run_name, folder, image_name, image, methods):
         )
 
         for restore in methods:
-            restored_filepath = join(join(folder, 'restored_cache_numpy'), f'{run_name}_{restore.__name__}_' + image_name + '.npy')
+            restored_filepath = join(
+                join(folder, "restored_cache_numpy"),
+                f"{run_name}_{restore.__name__}_" + image_name + ".npy",
+            )
             restored_image = numpy.load(restored_filepath)
 
             psnr_value = psnr(image, restored_image)
@@ -226,26 +263,31 @@ def benchmark_on_image(run_name, folder, image_name, image, methods):
 
             printscore(
                 f"restored with {restore.__name__}  \t\t: ",
-                psnr_value, ssim_value, mi_value, smi_value
+                psnr_value,
+                ssim_value,
+                mi_value,
+                smi_value,
             )
 
-            scores_file.write(f"{image_name}\t{restore.__name__}\t{psnr_value}\t{ssim_value}\t{mi_value}\t{smi_value}\n")
+            scores_file.write(
+                f"{image_name}\t{restore.__name__}\t{psnr_value}\t{ssim_value}\t{mi_value}\t{smi_value}\n"
+            )
 
 
 def compute_averages(run_name, folder, methods):
     method_names = list([method.__name__ for method in methods])
 
-    desc = \
-        {'blurry': 'blurry',
-         'noisy&blurred': 'blurry\&noisy (input)',
-         'restore_tv_cg': 'Conjugate Gradient TV',
-         'restore_tv_cp': 'Chambole Pock TV ',
-         'restore_lr_low': 'Lucy Richardson $n=5$',
-         'restore_lr_mid': 'Lucy Richardson $n=10$',
-         'restore_lr_high': 'Lucy Richardson $n=20$',
-         'restore_dl': 'SSI UNet \emph{no masking}',
-         'restore_ssi': 'SSI UNet',
-         }
+    desc = {
+        "blurry": "blurry",
+        "noisy&blurred": "blurry\&noisy (input)",
+        "restore_tv_cg": "Conjugate Gradient TV",
+        "restore_tv_cp": "Chambole Pock TV ",
+        "restore_lr_low": "Lucy Richardson $n=5$",
+        "restore_lr_mid": "Lucy Richardson $n=10$",
+        "restore_lr_high": "Lucy Richardson $n=20$",
+        "restore_dl": "SSI UNet \emph{no masking}",
+        "restore_ssi": "SSI UNet",
+    }
 
     # We now compute average timings:
     method2train = {}
@@ -275,12 +317,14 @@ def compute_averages(run_name, folder, methods):
         for method_name in method_names:
             average_train_time = numpy.mean(method2train[method_name])
             average_inf_time = numpy.mean(method2inf[method_name])
-            timming_file.write(f"{desc[method_name]}, {average_train_time:.2f}, {average_inf_time:.2f}\n")
+            timming_file.write(
+                f"{desc[method_name]}, {average_train_time:.2f}, {average_inf_time:.2f}\n"
+            )
 
     # We now compute average scores:
 
-    method_names.insert(0, 'noisy&blurred')
-    method_names.insert(0, 'blurry')
+    method_names.insert(0, "noisy&blurred")
+    method_names.insert(0, "blurry")
 
     method2psnr = {}
     method2ssim = {}
@@ -332,7 +376,7 @@ def compute_averages(run_name, folder, methods):
             average_mi = numpy.mean(method2mi[method_name])
             average_smi = numpy.mean(method2smi[method_name])
 
-            if method_name != 'blurry' and method_name != 'noisy&blurred':
+            if method_name != "blurry" and method_name != "noisy&blurred":
                 max_psnr = max(max_psnr, average_psnr)
                 max_ssim = max(max_ssim, average_ssim)
                 max_mi = max(max_mi, average_mi)
@@ -349,31 +393,35 @@ def compute_averages(run_name, folder, methods):
             average_mi = average_mis[method_name]
             average_smi = average_smis[method_name]
 
-            psnr = f'{average_psnr:.1f}'
-            ssim = f'{average_ssim:.2f}'
-            mi = f'{average_mi:.2f}'
-            smi = f'{average_smi:.2f}'
+            psnr = f"{average_psnr:.1f}"
+            ssim = f"{average_ssim:.2f}"
+            mi = f"{average_mi:.2f}"
+            smi = f"{average_smi:.2f}"
 
-            psnr = '\\textbf{' + psnr + '}' if average_psnr == max_psnr else psnr
-            ssim = '\\textbf{' + ssim + '}' if average_ssim == max_ssim else ssim
-            mi = '\\textbf{' + mi + '}' if average_mi == max_mi else mi
-            smi = '\\textbf{' + smi + '}' if average_smi == max_smi else smi
+            psnr = "\\textbf{" + psnr + "}" if average_psnr == max_psnr else psnr
+            ssim = "\\textbf{" + ssim + "}" if average_ssim == max_ssim else ssim
+            mi = "\\textbf{" + mi + "}" if average_mi == max_mi else mi
+            smi = "\\textbf{" + smi + "}" if average_smi == max_smi else smi
 
             scores_file.write(f"{desc[method_name]}, {psnr}, {ssim}, {mi}, {smi}\n")
 
 
-def compute_spectra(folder, source_sub_folder, target_sub_folder, add_prefix=''):
+def compute_spectra(folder, source_sub_folder, target_sub_folder, add_prefix=""):
     images_folder = join(folder, source_sub_folder)
     files = [f for f in os.listdir(images_folder) if isfile(join(images_folder, f))]
 
-    def compute_spectra_one_image(folder, source_sub_folder, image_name, target_sub_folder):
+    def compute_spectra_one_image(
+        folder, source_sub_folder, image_name, target_sub_folder
+    ):
         print(f"Begin processsing file {image_name}")
         images_folder = join(folder, source_sub_folder)
         filepath = join(images_folder, image_name)
         image = numpy.load(filepath)
 
-        spectrum_image_name_numpy = 'spectrum_' + image_name
-        spectrum_image_path_numpy = join(join(folder, target_sub_folder + '_numpy'), spectrum_image_name_numpy)
+        spectrum_image_name_numpy = "spectrum_" + image_name
+        spectrum_image_path_numpy = join(
+            join(folder, target_sub_folder + "_numpy"), spectrum_image_name_numpy
+        )
 
         if not exists(spectrum_image_path_numpy):
             spectrum_image = spectrum(image)[0]
@@ -381,23 +429,29 @@ def compute_spectra(folder, source_sub_folder, target_sub_folder, add_prefix='')
         else:
             spectrum_image = numpy.load(spectrum_image_path_numpy)
 
-        spectrum_image_name = 'spectrum_' + add_prefix + image_name.replace('.npy', '')
+        spectrum_image_name = "spectrum_" + add_prefix + image_name.replace(".npy", "")
         spectrum_image_path = join(join(folder, target_sub_folder), spectrum_image_name)
 
         spectrum_image_resize = resize(spectrum_image, (512, 512), anti_aliasing=True)
 
-        matplotlib.image.imsave(spectrum_image_path, spectrum_image_resize, cmap='magma', vmin=0, vmax=20)
+        matplotlib.image.imsave(
+            spectrum_image_path, spectrum_image_resize, cmap="magma", vmin=0, vmax=20
+        )
         print(f"End processsing file {image_name}")
 
     # Parallel(n_jobs=12) (delayed(compute_spectra_one_image)(folder, source_sub_folder, image_name, target_sub_folder) for image_name in files)
     # , prefer="threads"
     for image_name in files:
-        compute_spectra_one_image(folder, source_sub_folder, image_name, target_sub_folder)
+        compute_spectra_one_image(
+            folder, source_sub_folder, image_name, target_sub_folder
+        )
 
 
 def run_benchmark_on_folder(run_name, folder, methods=None):
-    gt_folder = join(folder, 'gt')
-    files = [f for f in os.listdir(gt_folder) if isfile(join(gt_folder, f)) and '.png' in f]
+    gt_folder = join(folder, "gt")
+    files = [
+        f for f in os.listdir(gt_folder) if isfile(join(gt_folder, f)) and ".png" in f
+    ]
 
     for image_name in files:
         print(f"Reading gt image: {image_name}")
@@ -407,29 +461,44 @@ def run_benchmark_on_folder(run_name, folder, methods=None):
 
 
 dirname = os.path.dirname(__file__)
-image_folder = os.path.join(dirname, 'images')
+image_folder = os.path.join(dirname, "images")
 
-generic_2d_mono_folder = join(image_folder, 'generic_2d_mono')
-generic_2d_rgb_folder = join(image_folder, 'generic_2d_rgb')
-generic_2d_all_folder = join(image_folder, 'generic_2d_all')
+generic_2d_mono_folder = join(image_folder, "generic_2d_mono")
+generic_2d_rgb_folder = join(image_folder, "generic_2d_rgb")
+generic_2d_all_folder = join(image_folder, "generic_2d_all")
 
 # run_benchmark_on_folder('best', generic_2d_all_folder, methods=[restore_tv_cg])
 
-run_benchmark_on_folder('best', generic_2d_all_folder, methods=[restore_lr_low, restore_lr_mid, restore_lr_high])
-run_benchmark_on_folder('best', generic_2d_all_folder, methods=[restore_ssi])
-run_benchmark_on_folder('best', generic_2d_all_folder, methods=[restore_dl])
-run_benchmark_on_folder('best', generic_2d_all_folder, methods=[restore_tv_cp, restore_tv_cg])  # restore_tv_cp,
+run_benchmark_on_folder(
+    "best",
+    generic_2d_all_folder,
+    methods=[restore_lr_low, restore_lr_mid, restore_lr_high],
+)
+run_benchmark_on_folder("best", generic_2d_all_folder, methods=[restore_ssi])
+run_benchmark_on_folder("best", generic_2d_all_folder, methods=[restore_dl])
+run_benchmark_on_folder(
+    "best", generic_2d_all_folder, methods=[restore_tv_cp, restore_tv_cg]
+)  # restore_tv_cp,
 #
-compute_averages('best', generic_2d_all_folder, methods=[restore_tv_cg,
-                                                         restore_tv_cp,
-                                                         restore_lr_low,
-                                                         restore_lr_mid,
-                                                         restore_lr_high,
-                                                         restore_dl,
-                                                         restore_ssi])  # restore_tv_cg
+compute_averages(
+    "best",
+    generic_2d_all_folder,
+    methods=[
+        restore_tv_cg,
+        restore_tv_cp,
+        restore_lr_low,
+        restore_lr_mid,
+        restore_lr_high,
+        restore_dl,
+        restore_ssi,
+    ],
+)  # restore_tv_cg
 
-compute_spectra(generic_2d_all_folder, 'gt_numpy', 'gt_spectra')
-compute_spectra(generic_2d_all_folder, 'blurrynoisy_numpy', 'blurrynoisy_spectra', add_prefix='blurrynoisy_')
-compute_spectra(generic_2d_all_folder, 'restored_cache_numpy', 'restored_spectra')
-
-
+compute_spectra(generic_2d_all_folder, "gt_numpy", "gt_spectra")
+compute_spectra(
+    generic_2d_all_folder,
+    "blurrynoisy_numpy",
+    "blurrynoisy_spectra",
+    add_prefix="blurrynoisy_",
+)
+compute_spectra(generic_2d_all_folder, "restored_cache_numpy", "restored_spectra")

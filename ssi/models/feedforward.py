@@ -4,7 +4,7 @@ import torch.nn.functional as F
 
 class FeedForward(nn.Module):
     def __init__(
-            self, n_input_channel=1, n_output_channel=1, depth=16, nic=16, kernel_size=5
+        self, n_input_channel=1, n_output_channel=1, depth=16, nic=16, kernel_size=5
     ):
         super().__init__()
 
@@ -49,4 +49,3 @@ class FeedForward(nn.Module):
 
     def post_optimisation(self):
         pass
-

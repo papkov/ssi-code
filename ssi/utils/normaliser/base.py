@@ -6,7 +6,7 @@ import numpy
 
 class NormaliserBase(ABC):
     """
-        Normaliser base class
+    Normaliser base class
 
     """
 
@@ -16,7 +16,7 @@ class NormaliserBase(ABC):
     original_dtype: numpy.dtype
 
     def __init__(
-            self, clip=True, epsilon=1e-21, shape_normalisation=True, transform=None
+        self, clip=True, epsilon=1e-21, shape_normalisation=True, transform=None
     ):
         """
         Constructs a normaliser
@@ -25,7 +25,7 @@ class NormaliserBase(ABC):
         self.epsilon = epsilon
         self.clip = clip
         self.shape_normalisation = shape_normalisation
-        self.transform = '' if transform is None else transform
+        self.transform = "" if transform is None else transform
 
         self.rmin = None
         self.rmax = None
@@ -86,17 +86,17 @@ class NormaliserBase(ABC):
                 array /= max_value - min_value + epsilon
                 if self.clip:
                     array = numpy.clip(array, 0, 1)  # , out=array
-                if self.transform == 'sqrt':
+                if self.transform == "sqrt":
                     array = numpy.sqrt(array)
 
         return array
 
     def denormalise(
-            self,
-            array: numpy.ndarray,
-            denormalise_values=True,
-            leave_as_float=False,
-            clip=True,
+        self,
+        array: numpy.ndarray,
+        denormalise_values=True,
+        leave_as_float=False,
+        clip=True,
     ):
         """
         Denormalises the given array in-place (if possible).
@@ -124,24 +124,24 @@ class NormaliserBase(ABC):
                 try:
                     # We perform operation in-place with numexpr if possible:
 
-                    if self.transform == 'sqrt':
+                    if self.transform == "sqrt":
                         array = array ** 2
 
                     if self.clip and clip:
                         numexpr.evaluate(
                             "where(array<0,0,where(array>1,1,array))",
                             out=array,
-                            casting='unsafe',
+                            casting="unsafe",
                         )
 
                     numexpr.evaluate(
                         "array * (max_value - min_value + epsilon) + min_value ",
                         out=array,
-                        casting='unsafe',
+                        casting="unsafe",
                     )
 
                 except ValueError:
-                    if self.transform == 'sqrt':
+                    if self.transform == "sqrt":
                         array = array ** 2
                     if self.clip and clip:
                         array = numpy.clip(array, 0, 1)  # , out=array
