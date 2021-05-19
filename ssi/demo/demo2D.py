@@ -1,10 +1,12 @@
+import argparse
+import os
 import sys
 import time
 from pathlib import Path
 
-import napari
 import numpy
-from imageio import imread
+import numpy as np
+from imageio import imread, imwrite
 
 from ssi.lr_deconv import ImageTranslatorLRDeconv
 from ssi.models.unet import UNet
@@ -21,12 +23,27 @@ from ssi.utils.metrics.image_metrics import (
     ssim,
 )
 
+try:
+    import napari
+
+    use_napari = True
+except ImportError:
+    print("napari not installed, disable visualization")
+    use_napari = False
+
+
 generic_2d_mono_raw_folder = Path("ssi/benchmark/images/generic_2d_all")
 
 
-def get_benchmark_image(type, name):
+def get_benchmark_image(type: str, name: str):
     folder = generic_2d_mono_raw_folder / type
-    files = [f for f in folder.iterdir() if f.is_file()]
+    if not folder.exists():
+        folder = Path("../..") / folder
+    try:
+        files = [f for f in folder.iterdir() if f.is_file()]
+    except FileNotFoundError as e:
+        print("File not found, cwd:", os.getcwd())
+        raise e
     filename = [f.name for f in files if name in f.name][0]
     filepath = folder / filename
     array = imread(filepath)
@@ -37,7 +54,14 @@ def printscore(header, val1, val2, val3, val4):
     print(f"{header}: \t {val1:.4f} \t {val2:.4f} \t {val3:.4f} \t {val4:.4f}")
 
 
-def demo(image_clipped):
+def demo(
+    image_clipped: np.ndarray,
+    two_pass: bool = False,
+    learning_rate: float = 0.01,
+    max_epochs: int = 3000,
+    masking_density: float = 0.01,
+):
+
     image_clipped = normalise(image_clipped.astype(numpy.float32))
     blurred_image, psf_kernel = add_microscope_blur_2d(image_clipped)
     # noisy_blurred_image = add_noise(blurred_image, intensity=None, variance=0.01, sap=0.01, clip=True)
@@ -57,16 +81,17 @@ def demo(image_clipped):
     lr_deconvolved_image_20 = lr.translate(noisy_blurred_image)
 
     it_deconv = SSIDeconvolution(
-        max_epochs=3000,
+        max_epochs=max_epochs,
         patience=300,
         batch_size=8,
-        learning_rate=0.01,
+        learning_rate=learning_rate,
         normaliser_type="identity",
         psf_kernel=psf_kernel,
         model_class=UNet,
         masking=True,
-        masking_density=0.01,
+        masking_density=masking_density,
         loss="l2",
+        two_pass=two_pass,
     )
 
     start = time.time()
@@ -151,25 +176,80 @@ def demo(image_clipped):
     )
     print("      Training should be more stable given more data...")
 
-    with napari.gui_qt():
-        viewer = napari.Viewer()
-        viewer.add_image(image, name="image")
-        viewer.add_image(blurred_image, name="blurred")
-        viewer.add_image(noisy_blurred_image, name="noisy_blurred_image")
-        viewer.add_image(lr_deconvolved_image_2_clipped, name="lr_deconvolved_image_2")
-        viewer.add_image(lr_deconvolved_image_5_clipped, name="lr_deconvolved_image_5")
-        viewer.add_image(
-            lr_deconvolved_image_10_clipped, name="lr_deconvolved_image_10"
+    if use_napari:
+        with napari.gui_qt():
+            viewer = napari.Viewer()
+            viewer.add_image(image, name="image")
+            viewer.add_image(blurred_image, name="blurred")
+            viewer.add_image(noisy_blurred_image, name="noisy_blurred_image")
+            viewer.add_image(
+                lr_deconvolved_image_2_clipped, name="lr_deconvolved_image_2"
+            )
+            viewer.add_image(
+                lr_deconvolved_image_5_clipped, name="lr_deconvolved_image_5"
+            )
+            viewer.add_image(
+                lr_deconvolved_image_10_clipped, name="lr_deconvolved_image_10"
+            )
+            viewer.add_image(
+                lr_deconvolved_image_20_clipped, name="lr_deconvolved_image_20"
+            )
+            viewer.add_image(deconvolved_image_clipped, name="ssi_deconvolved_image")
+    else:
+        imwrite("demo_results/image.png", image, format="png")
+        imwrite("demo_results/blurred.png", blurred_image, format="png")
+        imwrite(
+            "demo_results/noisy_blurred_image.png", noisy_blurred_image, format="png"
         )
-        viewer.add_image(
-            lr_deconvolved_image_20_clipped, name="lr_deconvolved_image_20"
+        imwrite(
+            "demo_results/lr_deconvolved_image_2.png",
+            lr_deconvolved_image_2_clipped,
+            format="png",
         )
-        viewer.add_image(deconvolved_image_clipped, name="ssi_deconvolved_image")
+        imwrite(
+            "demo_results/lr_deconvolved_image_5.png",
+            lr_deconvolved_image_5_clipped,
+            format="png",
+        )
+        imwrite(
+            "demo_results/lr_deconvolved_image_10.png",
+            lr_deconvolved_image_10_clipped,
+            format="png",
+        )
+        imwrite(
+            "demo_results/lr_deconvolved_image_20.png",
+            lr_deconvolved_image_20_clipped,
+            format="png",
+        )
+        imwrite(
+            "demo_results/ssi_deconvolved_image.png",
+            deconvolved_image_clipped,
+            format="png",
+        )
 
 
 if __name__ == "__main__":
-    image_name = "drosophila"
-    if len(sys.argv) > 1:
-        image_name = sys.argv[1].rstrip().lstrip()
-    image, _ = get_benchmark_image("gt", image_name)
-    demo(image)
+    parser = argparse.ArgumentParser(description="SSI Demo 2D")
+    parser.add_argument(
+        "--image", "-i", type=str, default="drosophila", help="Image to test on"
+    )
+    parser.add_argument("--masking_density", "-m", type=float, default=0.01)
+    parser.add_argument("--learning_rate", "-lr", type=float, default=0.01)
+    parser.add_argument("--max_epochs", "-e", type=int, default=3000)
+    parser.add_argument(
+        "--two_pass",
+        "-t",
+        action="store_true",
+        default=False,
+        help="Use two-pass scheme from Noise2Same",
+    )
+
+    args = parser.parse_args()
+    image, _ = get_benchmark_image("gt", args.image)
+    demo(
+        image,
+        two_pass=args.two_pass,
+        masking_density=args.masking_density,
+        max_epochs=args.max_epochs,
+        learning_rate=args.learning_rate,
+    )

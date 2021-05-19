@@ -34,6 +34,7 @@ class PTCNNImageTranslator(ImageTranslatorBase):
         batch_size=8,
         model_class=UNet,
         masking=True,
+        two_pass=False,  # two-pass Noise2Same loss
         masking_density=0.01,
         loss="l1",
         normaliser_type="percentile",
@@ -53,6 +54,9 @@ class PTCNNImageTranslator(ImageTranslatorBase):
         :param monitor: monitor to track progress of training externally (used by UI)
         """
         super().__init__(normaliser_type, monitor=monitor)
+        if two_pass and not masking:
+            lprint("Force masking=True, it is needed in two-pass")
+            masking = True
 
         use_cuda = use_cuda and (torch.cuda.device_count() > 0)
         self.device = torch.device(f"cuda:{device_index}" if use_cuda else "cpu")
@@ -77,6 +81,7 @@ class PTCNNImageTranslator(ImageTranslatorBase):
         self.reduce_lr_patience = patience // 2
         self.reduce_lr_factor = 0.9
         self.masking = masking
+        self.two_pass = two_pass
         self.masking_density = masking_density
         self.optimiser_class = ESAdam
         self.max_tile_size = max_tile_size
@@ -174,7 +179,7 @@ class PTCNNImageTranslator(ImageTranslatorBase):
 
         lprint(f"Optimiser: {optimizer}")
 
-        # Denoise loss functon:
+        # Denoise loss function:
         loss_function = nn.L1Loss()
         if self.loss.lower() == "l2":
             lprint(f"Training/Validation loss: L2")
@@ -186,6 +191,7 @@ class PTCNNImageTranslator(ImageTranslatorBase):
                 loss_function = lambda u, v: (u - v) ** 2
 
         elif self.loss.lower() == "l1":
+            lprint(f"Training/Validation loss: L1")
             if self.masking:
                 loss_function = (
                     lambda u, v, m: torch.abs(u - v)
@@ -355,7 +361,9 @@ class PTCNNImageTranslator(ImageTranslatorBase):
                         # Forward pass:
                         self.model.train()
                         if self.masking:
-                            translated_images_gpu = self.masked_model(input_images_gpu)
+                            translated_images_gpu = self.masked_model(
+                                input_images_gpu
+                            )  # pass with masking
                         else:
                             translated_images_gpu = self.model(input_images_gpu)
 
@@ -363,6 +371,13 @@ class PTCNNImageTranslator(ImageTranslatorBase):
                         forward_model_images_gpu = self._forward_model(
                             translated_images_gpu
                         )
+
+                        if self.two_pass:
+                            # pass without masking
+                            translated_images_full_gpu = self.model(input_images_gpu)
+                            forward_model_images_full_gpu = self._forward_model(
+                                translated_images_full_gpu
+                            )
 
                         # validation masking:
                         u = forward_model_images_gpu * (1 - validation_mask_images_gpu)
@@ -381,8 +396,31 @@ class PTCNNImageTranslator(ImageTranslatorBase):
                         else:
                             translation_loss = loss_function(u, v)
 
+                        if self.two_pass:
+                            # no masking for reconstruction
+                            reconstruction_loss = loss_function(
+                                forward_model_images_full_gpu, target_images_gpu, None
+                            )
+                            # masking for invariance
+                            invariance_loss = loss_function(
+                                forward_model_images_full_gpu
+                                * (1 - validation_mask_images_gpu),
+                                forward_model_images_gpu
+                                * (1 - validation_mask_images_gpu),
+                                # forward_model_images_full_gpu,
+                                # forward_model_images_gpu,
+                                mask,
+                            )
+
                         # loss value (for all voxels):
-                        translation_loss_value = translation_loss.mean()
+                        if self.two_pass:
+                            # todo adjust lambda
+                            translation_loss_value = (
+                                reconstruction_loss.mean()
+                                + 2 * torch.sqrt(invariance_loss.mean())
+                            )
+                        else:
+                            translation_loss_value = translation_loss.mean()
 
                         # Additional losses:
                         additional_loss_value = self._additional_losses(

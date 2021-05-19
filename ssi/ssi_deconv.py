@@ -158,8 +158,8 @@ class SSIDeconvolution(PTCNNImageTranslator):
 
         return loss
 
-    def _forward_model(self, input):
-        return self.psfconv(torch.clamp(input, 0, 1))
+    def _forward_model(self, x):
+        return self.psfconv(torch.clamp(x, 0, 1))
 
 
 def entropy(image, normalise=True, epsilon=1e-10, clip=True):

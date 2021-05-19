@@ -36,6 +36,7 @@ class ImageTranslatorBase(ABC):
         if normaliser_type == "identity":
             self.normalizer_class = IdentityNormaliser
         else:
+            # todo other normalizers
             raise ValueError("Unknown normalizer type passed!")
         self.normaliser_transform = normaliser_transform
         self.normaliser_clip = normaliser_clip
@@ -70,6 +71,7 @@ class ImageTranslatorBase(ABC):
         """This function supposed to take normalized input image only
         :param input_image:
         :param target_image:
+        :param tile_size:
         :param train_valid_ratio:
         :param callback_period:
         :return:

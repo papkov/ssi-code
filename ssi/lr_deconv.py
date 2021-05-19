@@ -51,7 +51,13 @@ class ImageTranslatorLRDeconv(ImageTranslatorBase):
         return memory_needed, memory_available
 
     def _train(
-        self, input_image, target_image, train_valid_ratio, callback_period, jinv
+        self,
+        input_image,
+        target_image,
+        tile_size,
+        train_valid_ratio,
+        callback_period,
+        jinv,
     ):
         pass
         # we need to figure out what to do here...
