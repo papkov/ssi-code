@@ -133,7 +133,7 @@ class SSIDeconvolution(PTCNNImageTranslator):
         if self.bounds_loss and self.bounds_loss != 0:
             epsilon = 0 * 1e-8
             bounds_loss = F.relu(-translated_image - epsilon)
-            bounds_loss += F.relu(translated_image - 1 - epsilon)
+            bounds_loss = bounds_loss + F.relu(translated_image - 1 - epsilon)
             bounds_loss_value = bounds_loss.mean()
             lprint(f"bounds_loss_value = {bounds_loss_value}")
             loss += self.bounds_loss * bounds_loss_value ** 2
