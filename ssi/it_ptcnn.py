@@ -35,6 +35,7 @@ class PTCNNImageTranslator(ImageTranslatorBase):
         model_class=UNet,
         masking=True,
         two_pass=False,  # two-pass Noise2Same loss
+        inv_mse_before_forward_model=False,
         masking_density=0.01,
         loss="l1",
         normaliser_type="percentile",
@@ -52,6 +53,8 @@ class PTCNNImageTranslator(ImageTranslatorBase):
         :param normaliser_type: normaliser type
         :param balance_training_data: balance data ? (limits number training entries per target value histogram bin)
         :param monitor: monitor to track progress of training externally (used by UI)
+        :param two_pass: bool, adopt Noise2Same two forward pass strategy (one masked, one unmasked)
+        :param inv_mse_before_forward_model: bool, use invariance MSE before forward (PSF) model for Noise2Same
         """
         super().__init__(normaliser_type, monitor=monitor)
         if two_pass and not masking:
@@ -82,6 +85,7 @@ class PTCNNImageTranslator(ImageTranslatorBase):
         self.reduce_lr_factor = 0.9
         self.masking = masking
         self.two_pass = two_pass
+        self.inv_mse_before_forward_model = inv_mse_before_forward_model
         self.masking_density = masking_density
         self.optimiser_class = ESAdam
         self.max_tile_size = max_tile_size
@@ -401,16 +405,28 @@ class PTCNNImageTranslator(ImageTranslatorBase):
                             reconstruction_loss = loss_function(
                                 forward_model_images_full_gpu, target_images_gpu, None
                             )
-                            # masking for invariance
-                            invariance_loss = loss_function(
-                                forward_model_images_full_gpu
-                                * (1 - validation_mask_images_gpu),
-                                forward_model_images_gpu
-                                * (1 - validation_mask_images_gpu),
-                                # forward_model_images_full_gpu,
-                                # forward_model_images_gpu,
-                                mask,
-                            )
+                            if self.inv_mse_before_forward_model:
+                                # masking for invariance
+                                invariance_loss = loss_function(
+                                    translated_images_full_gpu
+                                    * (1 - validation_mask_images_gpu),
+                                    translated_images_gpu
+                                    * (1 - validation_mask_images_gpu),
+                                    # forward_model_images_full_gpu,
+                                    # forward_model_images_gpu,
+                                    mask,
+                                )
+                            else:
+                                # masking for invariance
+                                invariance_loss = loss_function(
+                                    forward_model_images_full_gpu
+                                    * (1 - validation_mask_images_gpu),
+                                    forward_model_images_gpu
+                                    * (1 - validation_mask_images_gpu),
+                                    # forward_model_images_full_gpu,
+                                    # forward_model_images_gpu,
+                                    mask,
+                                )
 
                         # loss value (for all voxels):
                         if self.two_pass:

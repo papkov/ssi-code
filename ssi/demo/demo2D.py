@@ -57,6 +57,7 @@ def printscore(header, val1, val2, val3, val4):
 def demo(
     image_clipped: np.ndarray,
     two_pass: bool = False,
+    inv_mse_before_forward_model: bool = False,
     learning_rate: float = 0.01,
     max_epochs: int = 3000,
     masking_density: float = 0.01,
@@ -90,8 +91,9 @@ def demo(
         model_class=UNet,
         masking=True,
         masking_density=masking_density,
-        loss="l2",
+        loss=loss,
         two_pass=two_pass,
+        inv_mse_before_forward_model=inv_mse_before_forward_model,
     )
 
     start = time.time()
@@ -243,12 +245,21 @@ if __name__ == "__main__":
         default=False,
         help="Use two-pass scheme from Noise2Same",
     )
+    parser.add_argument(
+        "--inv_mse_before_forward_model",
+        "-imb",
+        action="store_true",
+        default=False,
+        help="Calculate inverse mse before forward PSF model",
+    )
 
     args = parser.parse_args()
     image, _ = get_benchmark_image("gt", args.image)
+    postfix = f"two_pass={args.two_pass}_before={args.inv_mse_before_forward_model}"
     demo(
         image,
         two_pass=args.two_pass,
+        inv_mse_before_forward_model=args.inv_mse_before_forward_model,
         masking_density=args.masking_density,
         max_epochs=args.max_epochs,
         learning_rate=args.learning_rate,
