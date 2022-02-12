@@ -2,7 +2,6 @@ import sys
 import time
 from pathlib import Path
 
-import napari
 import numpy
 from imageio import imread
 
@@ -10,7 +9,6 @@ from ssi.lr_deconv import ImageTranslatorLRDeconv
 from ssi.models.unet import UNet
 from ssi.ssi_deconv import SSIDeconvolution
 from ssi.utils.io.datasets import (
-    add_microscope_blur_2d,
     add_microscope_blur_3d,
     add_poisson_gaussian_noise,
     normalise,
@@ -21,6 +19,13 @@ from ssi.utils.metrics.image_metrics import (
     spectral_mutual_information,
     ssim,
 )
+
+try:
+    import napari
+    use_napari = True
+except ImportError:
+    print("napari not installed, disable visualization")
+    use_napari = False
 
 generic_2d_mono_raw_folder = Path("ssi/benchmark/images/generic_2d_all")
 
@@ -151,16 +156,19 @@ def demo(image_clipped):
     )
     print("      Training should be more stable given more data...")
 
-    with napari.gui_qt():
-        viewer = napari.Viewer()
-        viewer.add_image(image, name="image")
-        viewer.add_image(blurred_image, name="blurred")
-        viewer.add_image(noisy_blurred_image, name="noisy_blurred_image")
-        # viewer.add_image(lr_deconvolved_image_2_clipped, name='lr_deconvolved_image_2')
-        viewer.add_image(lr_deconvolved_image_5_clipped, name="lr_deconvolved_image_5")
-        # viewer.add_image(lr_deconvolved_image_10_clipped, name='lr_deconvolved_image_10')
-        # viewer.add_image(lr_deconvolved_image_20_clipped, name='lr_deconvolved_image_20')
-        viewer.add_image(deconvolved_image_clipped, name="ssi_deconvolved_image")
+    if use_napari:
+        with napari.gui_qt():
+            viewer = napari.Viewer()
+            viewer.add_image(image, name="image")
+            viewer.add_image(blurred_image, name="blurred")
+            viewer.add_image(noisy_blurred_image, name="noisy_blurred_image")
+            # viewer.add_image(lr_deconvolved_image_2_clipped, name='lr_deconvolved_image_2')
+            viewer.add_image(
+                lr_deconvolved_image_5_clipped, name="lr_deconvolved_image_5"
+            )
+            # viewer.add_image(lr_deconvolved_image_10_clipped, name='lr_deconvolved_image_10')
+            # viewer.add_image(lr_deconvolved_image_20_clipped, name='lr_deconvolved_image_20')
+            viewer.add_image(deconvolved_image_clipped, name="ssi_deconvolved_image")
 
 
 if __name__ == "__main__":
