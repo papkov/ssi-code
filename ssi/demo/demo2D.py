@@ -3,6 +3,7 @@ import os
 import sys
 import time
 from pathlib import Path
+from typing import List
 
 import numpy
 import numpy as np
@@ -50,8 +51,15 @@ def get_benchmark_image(type: str, name: str):
     return array, filename
 
 
-def printscore(header, val1, val2, val3, val4):
-    print(f"{header}: \t {val1:.4f} \t {val2:.4f} \t {val3:.4f} \t {val4:.4f}")
+def print_score(header: str, val1: float, val2: float, val3: float, val4: float):
+    print(f"| {header:30s} | {val1:.4f} | {val2:.4f} | {val3:.4f} | {val4:.4f} |")
+
+
+def print_header(columns: List[str]):
+    header = f"| {' | '.join(columns)} |"
+    separator = f"| {' | '.join(['-' * len(c) for c in columns])} |"
+    print(header)
+    print(separator)
 
 
 def demo(
@@ -61,6 +69,8 @@ def demo(
     learning_rate: float = 0.01,
     max_epochs: int = 3000,
     masking_density: float = 0.01,
+    output_dir: str = "demo_results",
+    loss: str = "l2",
 ):
 
     image_clipped = normalise(image_clipped.astype(numpy.float32))
@@ -113,57 +123,58 @@ def demo(
     lr_deconvolved_image_20_clipped = numpy.clip(lr_deconvolved_image_20, 0, 1)
     deconvolved_image_clipped = numpy.clip(deconvolved_image, 0, 1)
 
-    print("Below in order: PSNR, norm spectral mutual info, norm mutual info, SSIM: ")
-    printscore(
-        "blurry image          :   ",
+    columns = ["PSNR", "norm spectral mutual info", "norm mutual info", "SSIM"]
+    print_header(columns)
+    print_score(
+        "blurry image",
         psnr(image_clipped, blurred_image),
         spectral_mutual_information(image_clipped, blurred_image),
         mutual_information(image_clipped, blurred_image),
         ssim(image_clipped, blurred_image),
     )
 
-    printscore(
-        "noisy and blurry image:   ",
+    print_score(
+        "noisy and blurry image",
         psnr(image_clipped, noisy_blurred_image),
         spectral_mutual_information(image_clipped, noisy_blurred_image),
         mutual_information(image_clipped, noisy_blurred_image),
         ssim(image_clipped, noisy_blurred_image),
     )
 
-    printscore(
-        "lr deconv (n=2)       :    ",
+    print_score(
+        "lr deconv (n=2)",
         psnr(image_clipped, lr_deconvolved_image_2_clipped),
         spectral_mutual_information(image_clipped, lr_deconvolved_image_2_clipped),
         mutual_information(image_clipped, lr_deconvolved_image_2_clipped),
         ssim(image_clipped, lr_deconvolved_image_2_clipped),
     )
 
-    printscore(
-        "lr deconv (n=5)       :    ",
+    print_score(
+        "lr deconv (n=5)",
         psnr(image_clipped, lr_deconvolved_image_5_clipped),
         spectral_mutual_information(image_clipped, lr_deconvolved_image_5_clipped),
         mutual_information(image_clipped, lr_deconvolved_image_5_clipped),
         ssim(image_clipped, lr_deconvolved_image_5_clipped),
     )
 
-    printscore(
-        "lr deconv (n=10)      :    ",
+    print_score(
+        "lr deconv (n=10)",
         psnr(image_clipped, lr_deconvolved_image_10_clipped),
         spectral_mutual_information(image_clipped, lr_deconvolved_image_10_clipped),
         mutual_information(image_clipped, lr_deconvolved_image_10_clipped),
         ssim(image_clipped, lr_deconvolved_image_10_clipped),
     )
 
-    printscore(
-        "lr deconv (n=20)      :    ",
+    print_score(
+        "lr deconv (n=20)",
         psnr(image_clipped, lr_deconvolved_image_20_clipped),
         spectral_mutual_information(image_clipped, lr_deconvolved_image_20_clipped),
         mutual_information(image_clipped, lr_deconvolved_image_20_clipped),
         ssim(image_clipped, lr_deconvolved_image_20_clipped),
     )
 
-    printscore(
-        "ssi deconv            : ",
+    print_score(
+        "ssi deconv",
         psnr(image_clipped, deconvolved_image_clipped),
         spectral_mutual_information(image_clipped, deconvolved_image_clipped),
         mutual_information(image_clipped, deconvolved_image_clipped),
@@ -198,33 +209,36 @@ def demo(
             )
             viewer.add_image(deconvolved_image_clipped, name="ssi_deconvolved_image")
     else:
-        imwrite("demo_results/image.png", image, format="png")
-        imwrite("demo_results/blurred.png", blurred_image, format="png")
+        output_dir = Path(output_dir)
+        output_dir.mkdir(parents=True, exist_ok=True)
+
+        imwrite(output_dir / "image.png", image, format="png")
+        imwrite(output_dir / "blurred.png", blurred_image, format="png")
         imwrite(
-            "demo_results/noisy_blurred_image.png", noisy_blurred_image, format="png"
+            output_dir / "noisy_blurred_image.png", noisy_blurred_image, format="png"
         )
         imwrite(
-            "demo_results/lr_deconvolved_image_2.png",
+            output_dir / "lr_deconvolved_image_2.png",
             lr_deconvolved_image_2_clipped,
             format="png",
         )
         imwrite(
-            "demo_results/lr_deconvolved_image_5.png",
+            output_dir / "lr_deconvolved_image_5.png",
             lr_deconvolved_image_5_clipped,
             format="png",
         )
         imwrite(
-            "demo_results/lr_deconvolved_image_10.png",
+            output_dir / "lr_deconvolved_image_10.png",
             lr_deconvolved_image_10_clipped,
             format="png",
         )
         imwrite(
-            "demo_results/lr_deconvolved_image_20.png",
+            output_dir / "lr_deconvolved_image_20.png",
             lr_deconvolved_image_20_clipped,
             format="png",
         )
         imwrite(
-            "demo_results/ssi_deconvolved_image.png",
+            output_dir / "ssi_deconvolved_image.png",
             deconvolved_image_clipped,
             format="png",
         )
@@ -238,6 +252,8 @@ if __name__ == "__main__":
     parser.add_argument("--masking_density", "-m", type=float, default=0.01)
     parser.add_argument("--learning_rate", "-lr", type=float, default=0.01)
     parser.add_argument("--max_epochs", "-e", type=int, default=3000)
+    parser.add_argument("--output_dir", "-o", type=str, default="demo2D_results")
+    parser.add_argument("--loss", "-l", type=str, default="l2")
     parser.add_argument(
         "--two_pass",
         "-t",
@@ -263,4 +279,6 @@ if __name__ == "__main__":
         masking_density=args.masking_density,
         max_epochs=args.max_epochs,
         learning_rate=args.learning_rate,
+        loss=args.loss,
+        output_dir=f"{args.output_dir}/{args.image}_{postfix}/",
     )
