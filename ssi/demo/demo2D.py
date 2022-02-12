@@ -56,8 +56,8 @@ def print_score(header: str, val1: float, val2: float, val3: float, val4: float)
 
 
 def print_header(columns: List[str]):
-    header = f"| {' | '.join(columns)} |"
-    separator = f"| {' | '.join(['-' * len(c) for c in columns])} |"
+    header = f"| {' ' * 30} | {' | '.join(columns)} |"
+    separator = f"| {'-' * 30} | {' | '.join(['-' * len(c) for c in columns])} |"
     print(header)
     print(separator)
 
@@ -266,7 +266,7 @@ if __name__ == "__main__":
         "-imb",
         action="store_true",
         default=False,
-        help="Calculate inverse mse before forward PSF model",
+        help="Calculate invariance mse before forward PSF model",
     )
 
     args = parser.parse_args()
