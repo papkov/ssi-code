@@ -34,11 +34,13 @@ def demo(
     image_clipped: np.ndarray,
     two_pass: bool = False,
     inv_mse_before_forward_model: bool = False,
+    inv_mse_lambda: float = 2.0,
     learning_rate: float = 0.01,
     max_epochs: int = 3000,
     masking_density: float = 0.01,
     output_dir: str = "demo_results",
     loss: str = "l2",
+    check: bool = False,
 ):
 
     image_clipped = normalise(image_clipped.astype(numpy.float32))
@@ -72,6 +74,8 @@ def demo(
         loss=loss,
         two_pass=two_pass,
         inv_mse_before_forward_model=inv_mse_before_forward_model,
+        inv_mse_lambda=inv_mse_lambda,
+        check=check,
     )
 
     start = time.time()
@@ -210,4 +214,3 @@ def demo(
             deconvolved_image_clipped,
             format="png",
         )
-

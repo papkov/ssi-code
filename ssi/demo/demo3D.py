@@ -5,10 +5,17 @@ import numpy
 from ssi.lr_deconv import ImageTranslatorLRDeconv
 from ssi.models.unet import UNet
 from ssi.ssi_deconv import SSIDeconvolution
-from ssi.utils.io.datasets import (add_microscope_blur_3d,
-                                   add_poisson_gaussian_noise, normalise)
-from ssi.utils.metrics.image_metrics import (mutual_information, psnr,
-                                             spectral_mutual_information, ssim)
+from ssi.utils.io.datasets import (
+    add_microscope_blur_3d,
+    add_poisson_gaussian_noise,
+    normalise,
+)
+from ssi.utils.metrics.image_metrics import (
+    mutual_information,
+    psnr,
+    spectral_mutual_information,
+    ssim,
+)
 from ssi.utils.results import print_header, print_score
 
 try:

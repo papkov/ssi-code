@@ -18,3 +18,4 @@ loss: l2
 
 two_pass: False  # Use two-pass scheme from Noise2Same
 inv_mse_before_forward_model: False  # Calculate invariance mse before forward PSF model
+inv_mse_lambda: 2.0  # lambda for the invariance MSE loss

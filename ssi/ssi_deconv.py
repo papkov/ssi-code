@@ -1,3 +1,5 @@
+from typing import Dict, Tuple
+
 import numpy
 import torch
 import torch.nn.functional as F
@@ -126,18 +128,22 @@ class SSIDeconvolution(PTCNNImageTranslator):
 
         super()._train_loop(data_loader, optimizer, loss_function)
 
-    def _additional_losses(self, translated_image: T, forward_model_image: T) -> T:
+    def _additional_losses(
+        self, translated_image: T, forward_model_image: T
+    ) -> Tuple[T, Dict[str, float]]:
 
         loss = 0
+        loss_log = {}
 
         # Bounds loss:
         if self.bounds_loss and self.bounds_loss != 0:
             epsilon = 0 * 1e-8
             bounds_loss = F.relu(-translated_image - epsilon)
             bounds_loss = bounds_loss + F.relu(translated_image - 1 - epsilon)
-            bounds_loss_value = bounds_loss.mean()
-            lprint(f"bounds_loss_value = {bounds_loss_value}")
-            loss += self.bounds_loss * bounds_loss_value ** 2
+            bounds_loss = bounds_loss.mean()
+            lprint(f"bounds_loss_value = {bounds_loss}")
+            loss_log["bounds_loss"] = bounds_loss.item()
+            loss += self.bounds_loss * bounds_loss ** 2
 
         # Sharpen loss_deconvolution:
         if self.sharpening and self.sharpening != 0:
@@ -149,15 +155,17 @@ class SSIDeconvolution(PTCNNImageTranslator):
                 num_elements ** 2
             )  # /torch.norm(image_for_loss, dim=(2, 3), keepdim=True, p=1)
             lprint(f"sharpening loss = {sharpening_loss}")
+            loss_log["sharpening_loss"] = sharpening_loss.item()
             loss += self.sharpening * sharpening_loss.mean()
 
         # Max entropy loss:
         if self.entropy and self.entropy != 0:
             entropy_value = entropy(translated_image)
             lprint(f"entropy_value = {entropy_value}")
+            loss_log["entropy_loss"] = entropy_value.item()
             loss += -self.entropy * entropy_value
 
-        return loss
+        return loss, loss_log
 
     def _forward_model(self, x):
         return self.psfconv(torch.clamp(x, 0, 1))

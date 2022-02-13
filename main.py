@@ -7,6 +7,7 @@ import os
 from ssi.utils.results import fix_seed, get_benchmark_image
 from ssi.demo.demo2D import demo as demo2D
 from ssi.demo.demo3D import demo as demo3D
+import wandb
 
 
 @hydra.main(config_path="config", config_name="config")
@@ -18,9 +19,8 @@ def main(cfg: DictConfig) -> None:
 
     fix_seed(cfg.seed)
 
-    # if not cfg.check:
-    #     wandb.init(project=cfg.project, config=dict(cfg))
-
+    if not cfg.check:
+        wandb.init(project=cfg.project, config=dict(cfg))
 
     if cfg.experiment.lower() == "2d":
         image, _ = get_benchmark_image("gt", cfg.image, generic_2d_mono_raw_folder=cwd / cfg.data)
@@ -28,11 +28,13 @@ def main(cfg: DictConfig) -> None:
             image,
             two_pass=cfg.two_pass,
             inv_mse_before_forward_model=cfg.inv_mse_before_forward_model,
+            inv_mse_lambda=cfg.inv_mse_lambda,
             masking_density=cfg.masking_density,
-            max_epochs=cfg.max_epochs,
+            max_epochs=cfg.max_epochs if not cfg.check else 10,
             learning_rate=cfg.lr,
             loss=cfg.loss,
             output_dir="images",
+            check=cfg.check,
         )
     elif cfg.experiment.lower() == "3d":
         from skimage import data
