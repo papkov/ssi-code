@@ -16,6 +16,8 @@ from ssi.models.unet import UNet
 from ssi.optimisers.esadam import ESAdam
 from ssi.utils.array.nd import extract_tiles
 from ssi.utils.log.log import lprint, lsection
+from typing import Tuple
+from torch import Tensor as T
 
 
 def to_numpy(tensor):
@@ -287,7 +289,7 @@ class PTCNNImageTranslator(ImageTranslatorBase):
                 else:
                     return len(self.input_tiles)
 
-            def __getitem__(self, index):
+            def __getitem__(self, index) -> Tuple[T, T, T]:
                 if batch_size > 1:
                     input = self.input_tiles[0, ...]
                     target = self.target_tiles[0, ...]
@@ -297,7 +299,7 @@ class PTCNNImageTranslator(ImageTranslatorBase):
                     target = self.target_tiles[index, ...]
                     mask = self.mask_tiles[index, ...]
 
-                return (input, target, mask)
+                return input, target, mask
 
         if mode == "grid":
             return _Dataset(input_image, target_image, tilesize)
@@ -328,16 +330,16 @@ class PTCNNImageTranslator(ImageTranslatorBase):
             for epoch in range(self.max_epochs):
                 with lsection(f"Epoch {epoch}:"):
 
+                    train_loss_value = 0
+                    val_loss_value = 0
+                    loss_log_epoch = {}
+
                     if hasattr(self, "masked_model"):
                         self.masked_model.density = (
                             0.005 * self.masking_density
                             + 0.995 * self.masked_model.density
                         )
                         lprint(f"masking density: {self.masked_model.density}")
-
-                    train_loss_value = 0
-                    val_loss_value = 0
-                    loss_log_epoch = {}
 
                     for i, (input_images, target_images, val_mask_images) in enumerate(
                         data_loader
@@ -364,6 +366,7 @@ class PTCNNImageTranslator(ImageTranslatorBase):
                                     1 + (10000 * epoch / self.max_epochs)
                                 )
                                 lprint(f"Training noise level: {alpha}")
+                                loss_log["training_noise"] = alpha
                                 training_noise = alpha * torch.randn_like(input_images)
                                 input_images_gpu += training_noise.to(
                                     input_images_gpu.device
@@ -527,11 +530,14 @@ class PTCNNImageTranslator(ImageTranslatorBase):
                         k: v / iteration for k, v in loss_log_epoch.items()
                     }
 
-                    if not self.check:
-                        wandb.log(loss_log_epoch)
-
                     # Learning rate schedule:
                     scheduler.step(val_loss_value)
+
+                    loss_log_epoch["masking_density"] = self.masked_model.density
+                    loss_log_epoch["lr"] = scheduler._last_lr[0]  # pylint: disable=protected-access
+
+                    if not self.check:
+                        wandb.log(loss_log_epoch)
 
                     if val_loss_value < best_val_loss_value:
                         lprint(f"## New best val loss!")

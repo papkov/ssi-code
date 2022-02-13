@@ -4,6 +4,7 @@ from pathlib import Path
 import numpy
 import numpy as np
 from imageio import imwrite
+import wandb
 
 from ssi.lr_deconv import ImageTranslatorLRDeconv
 from ssi.models.unet import UNet
@@ -83,10 +84,16 @@ def demo(
     stop = time.time()
     print(f"Training: elapsed time:  {stop - start} ")
 
+    if not check:
+        wandb.run.summary["training_time"] = stop - start
+
     start = time.time()
     deconvolved_image = it_deconv.translate(noisy_blurred_image)
     stop = time.time()
     print(f"inference: elapsed time:  {stop - start} ")
+
+    if not check:
+        wandb.run.summary["inference_time"] = stop - start
 
     image_clipped = numpy.clip(image_clipped, 0, 1)
     lr_deconvolved_image_2_clipped = numpy.clip(lr_deconvolved_image_2, 0, 1)
@@ -145,12 +152,23 @@ def demo(
         ssim(image_clipped, lr_deconvolved_image_20_clipped),
     )
 
+    psnr_deconv = psnr(image_clipped, deconvolved_image_clipped)
+    smi_deconv = spectral_mutual_information(image_clipped, deconvolved_image_clipped)
+    mi_deconv = mutual_information(image_clipped, deconvolved_image_clipped)
+    ssim_deconv = ssim(image_clipped, deconvolved_image_clipped)
+
+    if not check:
+        wandb.run.summary["psnr"] = psnr_deconv
+        wandb.run.summary["smi"] = smi_deconv
+        wandb.run.summary["mi"] = mi_deconv
+        wandb.run.summary["ssim"] = ssim_deconv
+
     print_score(
         "ssi deconv",
-        psnr(image_clipped, deconvolved_image_clipped),
-        spectral_mutual_information(image_clipped, deconvolved_image_clipped),
-        mutual_information(image_clipped, deconvolved_image_clipped),
-        ssim(image_clipped, deconvolved_image_clipped),
+        psnr_deconv,
+        smi_deconv,
+        mi_deconv,
+        ssim_deconv,
     )
 
     print(
