@@ -2,6 +2,7 @@ import numpy
 import torch
 import torch.nn.functional as F
 from scipy.ndimage import convolve
+from torch import Tensor as T
 
 from ssi.it_ptcnn import PTCNNImageTranslator
 from ssi.models.psf_convolution import PSFConvolutionLayer2D, PSFConvolutionLayer3D
@@ -125,7 +126,7 @@ class SSIDeconvolution(PTCNNImageTranslator):
 
         super()._train_loop(data_loader, optimizer, loss_function)
 
-    def _additional_losses(self, translated_image, forward_model_image):
+    def _additional_losses(self, translated_image: T, forward_model_image: T) -> T:
 
         loss = 0
 

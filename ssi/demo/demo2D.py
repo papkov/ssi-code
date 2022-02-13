@@ -1,13 +1,9 @@
-import argparse
-import os
-import sys
 import time
 from pathlib import Path
-from typing import List
 
 import numpy
 import numpy as np
-from imageio import imread, imwrite
+from imageio import imwrite
 
 from ssi.lr_deconv import ImageTranslatorLRDeconv
 from ssi.models.unet import UNet
@@ -23,6 +19,7 @@ from ssi.utils.metrics.image_metrics import (
     spectral_mutual_information,
     ssim,
 )
+from ssi.utils.results import print_header, print_score
 
 try:
     import napari
@@ -31,35 +28,6 @@ try:
 except ImportError:
     print("napari not installed, disable visualization")
     use_napari = False
-
-
-generic_2d_mono_raw_folder = Path("ssi/benchmark/images/generic_2d_all")
-
-
-def get_benchmark_image(type: str, name: str):
-    folder = generic_2d_mono_raw_folder / type
-    if not folder.exists():
-        folder = Path("../..") / folder
-    try:
-        files = [f for f in folder.iterdir() if f.is_file()]
-    except FileNotFoundError as e:
-        print("File not found, cwd:", os.getcwd())
-        raise e
-    filename = [f.name for f in files if name in f.name][0]
-    filepath = folder / filename
-    array = imread(filepath)
-    return array, filename
-
-
-def print_score(header: str, val1: float, val2: float, val3: float, val4: float):
-    print(f"| {header:30s} | {val1:.4f} | {val2:.4f} | {val3:.4f} | {val4:.4f} |")
-
-
-def print_header(columns: List[str]):
-    header = f"| {' ' * 30} | {' | '.join(columns)} |"
-    separator = f"| {'-' * 30} | {' | '.join(['-' * len(c) for c in columns])} |"
-    print(header)
-    print(separator)
 
 
 def demo(
@@ -192,7 +160,7 @@ def demo(
     if use_napari:
         with napari.gui_qt():
             viewer = napari.Viewer()
-            viewer.add_image(image, name="image")
+            viewer.add_image(image_clipped, name="image")
             viewer.add_image(blurred_image, name="blurred")
             viewer.add_image(noisy_blurred_image, name="noisy_blurred_image")
             viewer.add_image(
@@ -212,7 +180,7 @@ def demo(
         output_dir = Path(output_dir)
         output_dir.mkdir(parents=True, exist_ok=True)
 
-        imwrite(output_dir / "image.png", image, format="png")
+        imwrite(output_dir / "image.png", image_clipped, format="png")
         imwrite(output_dir / "blurred.png", blurred_image, format="png")
         imwrite(
             output_dir / "noisy_blurred_image.png", noisy_blurred_image, format="png"
@@ -243,42 +211,3 @@ def demo(
             format="png",
         )
 
-
-if __name__ == "__main__":
-    parser = argparse.ArgumentParser(description="SSI Demo 2D")
-    parser.add_argument(
-        "--image", "-i", type=str, default="drosophila", help="Image to test on"
-    )
-    parser.add_argument("--masking_density", "-m", type=float, default=0.01)
-    parser.add_argument("--learning_rate", "-lr", type=float, default=0.01)
-    parser.add_argument("--max_epochs", "-e", type=int, default=3000)
-    parser.add_argument("--output_dir", "-o", type=str, default="demo2D_results")
-    parser.add_argument("--loss", "-l", type=str, default="l2")
-    parser.add_argument(
-        "--two_pass",
-        "-t",
-        action="store_true",
-        default=False,
-        help="Use two-pass scheme from Noise2Same",
-    )
-    parser.add_argument(
-        "--inv_mse_before_forward_model",
-        "-imb",
-        action="store_true",
-        default=False,
-        help="Calculate invariance mse before forward PSF model",
-    )
-
-    args = parser.parse_args()
-    image, _ = get_benchmark_image("gt", args.image)
-    postfix = f"two_pass={args.two_pass}_before={args.inv_mse_before_forward_model}"
-    demo(
-        image,
-        two_pass=args.two_pass,
-        inv_mse_before_forward_model=args.inv_mse_before_forward_model,
-        masking_density=args.masking_density,
-        max_epochs=args.max_epochs,
-        learning_rate=args.learning_rate,
-        loss=args.loss,
-        output_dir=f"{args.output_dir}/{args.image}_{postfix}/",
-    )

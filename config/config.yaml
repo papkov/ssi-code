@@ -1,0 +1,20 @@
+hydra:
+  run:
+    dir: results/${image}/${hydra.job.name}/${now:%Y-%m-%d_%H-%M-%S}
+
+project: ssi
+device: 0
+seed: 56
+check: False
+
+experiment: "2D"
+data: "ssi/benchmark/images/generic_2d_all"
+image: drosophila
+
+masking_density: 0.01
+lr: 0.01
+max_epochs: 3000
+loss: l2
+
+two_pass: False  # Use two-pass scheme from Noise2Same
+inv_mse_before_forward_model: False  # Calculate invariance mse before forward PSF model

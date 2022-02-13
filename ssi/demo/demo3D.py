@@ -1,46 +1,23 @@
-import sys
 import time
-from pathlib import Path
 
 import numpy
-from imageio import imread
 
 from ssi.lr_deconv import ImageTranslatorLRDeconv
 from ssi.models.unet import UNet
 from ssi.ssi_deconv import SSIDeconvolution
-from ssi.utils.io.datasets import (
-    add_microscope_blur_3d,
-    add_poisson_gaussian_noise,
-    normalise,
-)
-from ssi.utils.metrics.image_metrics import (
-    mutual_information,
-    psnr,
-    spectral_mutual_information,
-    ssim,
-)
+from ssi.utils.io.datasets import (add_microscope_blur_3d,
+                                   add_poisson_gaussian_noise, normalise)
+from ssi.utils.metrics.image_metrics import (mutual_information, psnr,
+                                             spectral_mutual_information, ssim)
+from ssi.utils.results import print_header, print_score
 
 try:
     import napari
+
     use_napari = True
 except ImportError:
     print("napari not installed, disable visualization")
     use_napari = False
-
-generic_2d_mono_raw_folder = Path("ssi/benchmark/images/generic_2d_all")
-
-
-def get_benchmark_image(type, name):
-    folder = generic_2d_mono_raw_folder / type
-    files = [f for f in folder.iterdir() if f.is_file()]
-    filename = [f.name for f in files if name in f.name][0]
-    filepath = folder / filename
-    array = imread(filepath)
-    return array, filename
-
-
-def printscore(header, val1, val2, val3, val4):
-    print(f"{header}: \t {val1:.4f} \t {val2:.4f} \t {val3:.4f} \t {val4:.4f}")
 
 
 def demo(image_clipped):
@@ -91,57 +68,58 @@ def demo(image_clipped):
     # lr_deconvolved_image_20_clipped = numpy.clip(lr_deconvolved_image_20, 0, 1)
     deconvolved_image_clipped = numpy.clip(deconvolved_image, 0, 1)
 
-    print("Below in order: PSNR, norm spectral mutual info, norm mutual info, SSIM: ")
-    printscore(
-        "blurry image          :   ",
+    columns = ["PSNR", "norm spectral mutual info", "norm mutual info", "SSIM"]
+    print_header(columns)
+    print_score(
+        "blurry image",
         psnr(image_clipped, blurred_image),
         spectral_mutual_information(image_clipped, blurred_image),
         mutual_information(image_clipped, blurred_image),
         ssim(image_clipped, blurred_image),
     )
 
-    printscore(
-        "noisy and blurry image:   ",
+    print_score(
+        "noisy and blurry image",
         psnr(image_clipped, noisy_blurred_image),
         spectral_mutual_information(image_clipped, noisy_blurred_image),
         mutual_information(image_clipped, noisy_blurred_image),
         ssim(image_clipped, noisy_blurred_image),
     )
 
-    # printscore(
-    #     "lr deconv (n=2)       :    ",
+    # print_score(
+    #     "lr deconv (n=2)",
     #     psnr(image_clipped, lr_deconvolved_image_2_clipped),
     #     spectral_mutual_information(image_clipped, lr_deconvolved_image_2_clipped),
     #     mutual_information(image_clipped, lr_deconvolved_image_2_clipped),
     #     ssim(image_clipped, lr_deconvolved_image_2_clipped),
     # )
 
-    printscore(
-        "lr deconv (n=5)       :    ",
+    print_score(
+        "lr deconv (n=5)",
         psnr(image_clipped, lr_deconvolved_image_5_clipped),
         spectral_mutual_information(image_clipped, lr_deconvolved_image_5_clipped),
         mutual_information(image_clipped, lr_deconvolved_image_5_clipped),
         ssim(image_clipped, lr_deconvolved_image_5_clipped),
     )
 
-    # printscore(
-    #     "lr deconv (n=10)      :    ",
+    # print_score(
+    #     "lr deconv (n=10)",
     #     psnr(image_clipped, lr_deconvolved_image_10_clipped),
     #     spectral_mutual_information(image_clipped, lr_deconvolved_image_10_clipped),
     #     mutual_information(image_clipped, lr_deconvolved_image_10_clipped),
     #     ssim(image_clipped, lr_deconvolved_image_10_clipped),
     # )
     #
-    # printscore(
-    #     "lr deconv (n=20)      :    ",
+    # print_score(
+    #     "lr deconv (n=20)",
     #     psnr(image_clipped, lr_deconvolved_image_20_clipped),
     #     spectral_mutual_information(image_clipped, lr_deconvolved_image_20_clipped),
     #     mutual_information(image_clipped, lr_deconvolved_image_20_clipped),
     #     ssim(image_clipped, lr_deconvolved_image_20_clipped),
     # )
 
-    printscore(
-        "ssi deconv            : ",
+    print_score(
+        "ssi deconv",
         psnr(image_clipped, deconvolved_image_clipped),
         spectral_mutual_information(image_clipped, deconvolved_image_clipped),
         mutual_information(image_clipped, deconvolved_image_clipped),
@@ -159,7 +137,7 @@ def demo(image_clipped):
     if use_napari:
         with napari.gui_qt():
             viewer = napari.Viewer()
-            viewer.add_image(image, name="image")
+            viewer.add_image(image_clipped, name="image")
             viewer.add_image(blurred_image, name="blurred")
             viewer.add_image(noisy_blurred_image, name="noisy_blurred_image")
             # viewer.add_image(lr_deconvolved_image_2_clipped, name='lr_deconvolved_image_2')
@@ -169,12 +147,3 @@ def demo(image_clipped):
             # viewer.add_image(lr_deconvolved_image_10_clipped, name='lr_deconvolved_image_10')
             # viewer.add_image(lr_deconvolved_image_20_clipped, name='lr_deconvolved_image_20')
             viewer.add_image(deconvolved_image_clipped, name="ssi_deconvolved_image")
-
-
-if __name__ == "__main__":
-
-    from skimage import data
-
-    image = data.binary_blobs(length=64, n_dim=3, blob_size_fraction=0.1, seed=1)
-
-    demo(image)
