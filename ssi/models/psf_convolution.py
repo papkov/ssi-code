@@ -7,7 +7,8 @@ import torch.nn.functional as f
 from numpy import ndarray
 from torch import nn
 
-from ssi.utils.fft import fft_conv
+from ssi.utils.fft.fft_conv import fft_conv
+from ssi.utils.log.log import lprint, lsection
 
 
 class PSFConvolutionLayer2D(nn.Module):
@@ -91,10 +92,14 @@ class PSFConvolutionLayer(nn.Module):
         assert self.n_dim in (2, 3)
 
         if pad_mode is None:
+            lprint("Padding mode is None, using default pad_mode='reflect'")
             pad_mode = "reflect"
 
         if self.n_dim == 3 and pad_mode == "reflect":
             # Not supported yet
+            lprint(
+                "Padding mode 'reflect' is not supported for 3D convolution, use 'replicate' instead"
+            )
             pad_mode = "replicate"
 
         self.pad_mode = pad_mode
@@ -110,6 +115,7 @@ class PSFConvolutionLayer(nn.Module):
         if not self.fft:
             auto_padding = False
         self.auto_padding = auto_padding
+        lprint(f"Use FFT for PSF: {self.fft}, auto padding: {auto_padding}")
 
         self.psf = torch.from_numpy(kernel_psf.squeeze()[(None,) * 2]).float()
         self.psf = nn.Parameter(self.psf, requires_grad=trainable)
