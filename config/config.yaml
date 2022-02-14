@@ -6,6 +6,7 @@ project: ssi
 device: 0
 seed: 56
 check: False
+amp: True
 
 experiment: "2D"
 data: "ssi/benchmark/images/generic_2d_all"
@@ -16,6 +17,10 @@ lr: 0.001
 max_epochs: 3000
 patience: 1000
 loss: l2
+optimizer: esadam
+fft_psf: auto  # auto, true, false
+clip_before_psf: True
+standardize: False  # zero mean, unit variance
 
 two_pass: False  # Use two-pass scheme from Noise2Same
 inv_mse_before_forward_model: False  # Calculate invariance mse before forward PSF model

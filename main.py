@@ -34,8 +34,13 @@ def main(cfg: DictConfig) -> None:
             patience=cfg.patience,
             learning_rate=cfg.lr,
             loss=cfg.loss,
+            optimizer=cfg.optimizer,
             output_dir="images",
             check=cfg.check,
+            fft_psf=cfg.fft_psf,
+            clip_before_psf=cfg.clip_before_psf,
+            standardize=cfg.standardize,
+            amp=cfg.amp,
         )
     elif cfg.experiment.lower() == "3d":
         from skimage import data

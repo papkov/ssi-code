@@ -1,5 +1,6 @@
 import time
 from pathlib import Path
+from typing import Union
 
 import numpy
 import numpy as np
@@ -43,6 +44,11 @@ def demo(
     output_dir: str = "demo_results",
     loss: str = "l2",
     check: bool = False,
+    optimizer: str = "esadam",
+    clip_before_psf: bool = True,
+    fft_psf: Union[str, bool] = "auto",
+    standardize: bool = False,
+    amp: bool = False,
 ):
 
     image_clipped = normalise(image_clipped.astype(numpy.float32))
@@ -78,6 +84,11 @@ def demo(
         inv_mse_before_forward_model=inv_mse_before_forward_model,
         inv_mse_lambda=inv_mse_lambda,
         check=check,
+        optimizer=optimizer,
+        clip_before_psf=clip_before_psf,
+        fft_psf=fft_psf,
+        standardize=standardize,
+        amp=amp,
     )
 
     start = time.time()

@@ -1,6 +1,7 @@
 import math
 from collections import OrderedDict
 from copy import deepcopy
+from functools import partial
 from itertools import chain
 from typing import Dict, Tuple
 
@@ -9,6 +10,7 @@ import torch
 import wandb
 from torch import Tensor as T
 from torch import nn
+from torch.cuda.amp import autocast
 from torch.optim.lr_scheduler import ReduceLROnPlateau
 from torch.utils.data import Dataset
 
@@ -53,6 +55,8 @@ class PTCNNImageTranslator(ImageTranslatorBase):
         max_tile_size: int = 1024,  # TODO: adjust based on available memory
         check: bool = True,
         optimizer: str = "esadam",
+        standardize: bool = False,
+        amp: bool = False,
     ):
         """
         Constructs an image translator using the pytorch deep learning library.
@@ -64,6 +68,7 @@ class PTCNNImageTranslator(ImageTranslatorBase):
         :param inv_mse_before_forward_model: bool, use invariance MSE before forward (PSF) model for Noise2Same
         :param check: bool, run smoke test
         :param optimizer: str, optimiser to use ["adam", "esadam"]
+        :param standardize: bool, standardize input images to zero mean and unit variance
         """
         super().__init__(normaliser_type, monitor=monitor)
         if two_pass and not masking:
@@ -97,11 +102,13 @@ class PTCNNImageTranslator(ImageTranslatorBase):
         self.inv_mse_before_forward_model = inv_mse_before_forward_model
         self.inv_mse_lambda = inv_mse_lambda
         self.masking_density = masking_density
-        self.optimiser_class = ESAdam if optimizer == "esadam" else torch.optim.Adam
+        self.optimizer_class = ESAdam if optimizer == "esadam" else torch.optim.Adam
         self.max_tile_size = max_tile_size
 
         self._stop_training_flag = False
         self.check = check
+        self.standardize = standardize
+        self.amp = amp
 
         # Denoise loss function:
         loss_function = nn.L1Loss()
@@ -128,6 +135,7 @@ class PTCNNImageTranslator(ImageTranslatorBase):
 
         self.loss_function = loss_function
 
+        # Monitor
         self.best_val_loss_value = math.inf
         self.best_model_state_dict = None
         self.patience_counter = 0
@@ -139,11 +147,11 @@ class PTCNNImageTranslator(ImageTranslatorBase):
         tile_size=None,
         train_valid_ratio=0.1,
         callback_period=3,
-        jinv=False,
+        j_inv=False,
     ):
         self._stop_training_flag = False
 
-        if jinv is not None and not jinv:
+        if j_inv is not None and not j_inv:
             self.masking = False
 
         shape = input_image.shape
@@ -209,14 +217,20 @@ class PTCNNImageTranslator(ImageTranslatorBase):
         if self.masking:
             self.masked_model = Masking(self.model, density=0.5).to(self.device)
 
-        lprint(f"Optimiser class: {self.optimiser_class}")
+        lprint(f"Optimiser class: {self.optimizer_class}")
         lprint(f"Learning rate : {self.learning_rate}")
 
         # Optimiser:
-        optimizer = self.optimiser_class(
+        if isinstance(self.optimizer_class, ESAdam):
+            optimizer = partial(
+                self.optimizer_class, start_noise_level=self.training_noise
+            )
+        else:
+            optimizer = self.optimizer_class
+
+        optimizer = optimizer(
             chain(self.model.parameters()),
             lr=self.learning_rate,
-            start_noise_level=self.training_noise,
             weight_decay=self.l2_weight_regularisation,
         )
 
@@ -381,12 +395,13 @@ class PTCNNImageTranslator(ImageTranslatorBase):
             )
 
             # Training step
-            translation_loss_value, loss_log = self._train_step(
-                input_images_gpu,
-                target_images_gpu,
-                validation_mask_images_gpu,
-                epoch,
-            )
+            with autocast(enabled=self.amp):
+                translation_loss_value, loss_log = self._train_step(
+                    input_images_gpu,
+                    target_images_gpu,
+                    validation_mask_images_gpu,
+                    epoch,
+                )
 
             # Backpropagation
             translation_loss_value.backward()
@@ -401,11 +416,12 @@ class PTCNNImageTranslator(ImageTranslatorBase):
             train_loss_value += translation_loss_value.item()
 
             # Validation:
-            translation_loss_value = self._valid_step(
-                input_images_gpu,
-                target_images_gpu,
-                validation_mask_images_gpu,
-            )
+            with autocast(enabled=self.amp):
+                translation_loss_value = self._valid_step(
+                    input_images_gpu,
+                    target_images_gpu,
+                    validation_mask_images_gpu,
+                )
             # update validation loss_deconvolution for whole image:
             loss_log["val_translation_loss"] = translation_loss_value
             val_loss_value += translation_loss_value

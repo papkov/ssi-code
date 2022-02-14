@@ -1,4 +1,4 @@
-from typing import Any, Dict, Tuple
+from typing import Any, Dict, Tuple, Union
 
 import numpy
 import torch
@@ -24,6 +24,7 @@ class SSIDeconvolution(PTCNNImageTranslator):
         bounds_loss: float = 0.1,
         entropy: float = 0.0,
         clip_before_psf: bool = True,
+        fft_psf: Union[str, bool] = "auto",
         **kwargs,
     ):
         """
@@ -34,6 +35,7 @@ class SSIDeconvolution(PTCNNImageTranslator):
         :param monitor: monitor to track progress of training externally (used by UI)
 
         :param clip_before_psf: torch.clamp(x, 0, 1) before PSF convolution
+        :param fft_psf: "auto" or True or False
         """
         super().__init__(**kwargs)
 
@@ -43,6 +45,7 @@ class SSIDeconvolution(PTCNNImageTranslator):
         self.bounds_loss = bounds_loss
         self.entropy = entropy
         self.clip_before_psf = clip_before_psf
+        self.fft_psf = fft_psf
 
     def _train(
         self,
@@ -110,6 +113,7 @@ class SSIDeconvolution(PTCNNImageTranslator):
             self.psf_kernel,
             in_channels=num_channels,
             pad_mode="reflect" if ndim == 2 else "replicate",
+            fft=self.fft_psf,
         ).to(self.device)
 
         super()._train(
