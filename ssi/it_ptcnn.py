@@ -2,10 +2,12 @@ import math
 from collections import OrderedDict
 from copy import deepcopy
 from itertools import chain
+from typing import Tuple
 
 import numpy
 import torch
 import wandb
+from torch import Tensor as T
 from torch import nn
 from torch.optim.lr_scheduler import ReduceLROnPlateau
 from torch.utils.data import Dataset
@@ -14,10 +16,8 @@ from ssi.base import ImageTranslatorBase
 from ssi.models.masking import Masking
 from ssi.models.unet import UNet
 from ssi.optimisers.esadam import ESAdam
-from ssi.utils.array.nd import extract_tiles
+from ssi.utils.data.dataset import DeconvolutionDataset
 from ssi.utils.log.log import lprint, lsection
-from typing import Tuple
-from torch import Tensor as T
 
 
 def to_numpy(tensor):
@@ -52,6 +52,7 @@ class PTCNNImageTranslator(ImageTranslatorBase):
         device_index=0,
         max_tile_size: int = 1024,  # TODO: adjust based on available memory
         check: bool = True,
+        optimizer: str = "esadam",
     ):
         """
         Constructs an image translator using the pytorch deep learning library.
@@ -62,6 +63,7 @@ class PTCNNImageTranslator(ImageTranslatorBase):
         :param two_pass: bool, adopt Noise2Same two forward pass strategy (one masked, one unmasked)
         :param inv_mse_before_forward_model: bool, use invariance MSE before forward (PSF) model for Noise2Same
         :param check: bool, run smoke test
+        :param optimizer: str, optimiser to use ["adam", "esadam"]
         """
         super().__init__(normaliser_type, monitor=monitor)
         if two_pass and not masking:
@@ -95,7 +97,7 @@ class PTCNNImageTranslator(ImageTranslatorBase):
         self.inv_mse_before_forward_model = inv_mse_before_forward_model
         self.inv_mse_lambda = inv_mse_lambda
         self.masking_density = masking_density
-        self.optimiser_class = ESAdam
+        self.optimiser_class = ESAdam if optimizer == "esadam" else torch.optim.Adam
         self.max_tile_size = max_tile_size
 
         self._stop_training_flag = False
@@ -145,7 +147,7 @@ class PTCNNImageTranslator(ImageTranslatorBase):
             input_image,
             target_image,
             self.self_supervised,
-            tilesize=tile_size,
+            tile_size=tile_size,
             mode="grid",
             validation_voxels=val_voxels,
             batch_size=self.batch_size,
@@ -223,86 +225,20 @@ class PTCNNImageTranslator(ImageTranslatorBase):
         input_image: numpy.ndarray,
         target_image: numpy.ndarray,
         self_supervised: bool,
-        tilesize: int,
+        tile_size: int,
         mode: str,
         validation_voxels,
         batch_size=32,
     ):
-        class _Dataset(Dataset):
-            def __init__(self, input_image, target_image, tilesize):
-                """"""
-
-                if batch_size > 1:
-                    input_image = numpy.concatenate(
-                        [input_image for _ in range(16)], axis=0
-                    )
-                    target_image = numpy.concatenate(
-                        [target_image for _ in range(16)], axis=0
-                    )
-
-                num_channels_input = input_image.shape[1]
-                num_channels_target = target_image.shape[1]
-
-                def extract(image):
-                    return extract_tiles(
-                        image,
-                        tile_size=tilesize,
-                        extraction_step=tilesize,
-                        flatten=True,
-                    )
-
-                bc_flat_input_image = input_image.reshape(-1, *input_image.shape[2:])
-                bc_flat_input_tiles = numpy.concatenate(
-                    [extract(x) for x in bc_flat_input_image]
-                )
-                self.input_tiles = bc_flat_input_tiles.reshape(
-                    -1, num_channels_input, *bc_flat_input_tiles.shape[1:]
-                )
-
-                if self_supervised:
-                    self.target_tiles = self.input_tiles
-                else:
-                    bc_flat_target_image = target_image.reshape(
-                        -1, *target_image.shape[2:]
-                    )
-                    bc_flat_target_tiles = numpy.concatenate(
-                        [extract(x) for x in bc_flat_target_image]
-                    )
-                    self.target_tiles = bc_flat_target_tiles.reshape(
-                        -1, num_channels_target, *bc_flat_target_tiles.shape[1:]
-                    )
-
-                mask_image = numpy.zeros_like(input_image)
-                mask_image[validation_voxels] = 1
-
-                bc_flat_mask_image = mask_image.reshape(-1, *mask_image.shape[2:])
-                bc_flat_mask_tiles = numpy.concatenate(
-                    [extract(x) for x in bc_flat_mask_image]
-                )
-                self.mask_tiles = bc_flat_mask_tiles.reshape(
-                    -1, num_channels_input, *bc_flat_mask_tiles.shape[1:]
-                )
-
-            def __len__(self):
-                if batch_size > 1:
-                    return 1
-                else:
-                    return len(self.input_tiles)
-
-            def __getitem__(self, index) -> Tuple[T, T, T]:
-                if batch_size > 1:
-                    input = self.input_tiles[0, ...]
-                    target = self.target_tiles[0, ...]
-                    mask = self.mask_tiles[0, ...]
-                else:
-                    input = self.input_tiles[index, ...]
-                    target = self.target_tiles[index, ...]
-                    mask = self.mask_tiles[index, ...]
-
-                return input, target, mask
-
         if mode == "grid":
-            return _Dataset(input_image, target_image, tilesize)
+            return DeconvolutionDataset(
+                input_image=input_image,
+                target_image=target_image,
+                tile_size=tile_size,
+                self_supervised=self_supervised,
+                batch_size=batch_size,
+                validation_voxels=validation_voxels,
+            )
         else:
             return None
 
@@ -534,7 +470,9 @@ class PTCNNImageTranslator(ImageTranslatorBase):
                     scheduler.step(val_loss_value)
 
                     loss_log_epoch["masking_density"] = self.masked_model.density
-                    loss_log_epoch["lr"] = scheduler._last_lr[0]  # pylint: disable=protected-access
+                    loss_log_epoch["lr"] = scheduler._last_lr[
+                        0
+                    ]  # pylint: disable=protected-access
 
                     if not self.check:
                         wandb.log(loss_log_epoch)
