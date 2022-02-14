@@ -1,4 +1,4 @@
-from typing import Dict, Tuple
+from typing import Any, Dict, Tuple
 
 import numpy
 import torch
@@ -7,7 +7,11 @@ from scipy.ndimage import convolve
 from torch import Tensor as T
 
 from ssi.it_ptcnn import PTCNNImageTranslator
-from ssi.models.psf_convolution import PSFConvolutionLayer2D, PSFConvolutionLayer3D
+from ssi.models.psf_convolution import (
+    PSFConvolutionLayer,
+    PSFConvolutionLayer2D,
+    PSFConvolutionLayer3D,
+)
 from ssi.utils.log.log import lprint
 
 
@@ -18,11 +22,12 @@ class SSIDeconvolution(PTCNNImageTranslator):
 
     def __init__(
         self,
-        psf_kernel=None,
-        broaden_psf=1,
-        sharpening=0,
-        bounds_loss=0.1,
-        entropy=0,
+        psf_kernel: numpy.ndarray = None,
+        broaden_psf: int = 1,
+        sharpening: float = 0.0,
+        bounds_loss: float = 0.1,
+        entropy: float = 0.0,
+        clip_before_psf: bool = True,
         **kwargs,
     ):
         """
@@ -31,6 +36,8 @@ class SSIDeconvolution(PTCNNImageTranslator):
         :param normaliser_type: normaliser type
         :param balance_training_data: balance data ? (limits number training entries per target value histogram bin)
         :param monitor: monitor to track progress of training externally (used by UI)
+
+        :param clip_before_psf: torch.clamp(x, 0, 1) before PSF convolution
         """
         super().__init__(**kwargs)
 
@@ -39,6 +46,7 @@ class SSIDeconvolution(PTCNNImageTranslator):
         self.sharpening = sharpening
         self.bounds_loss = bounds_loss
         self.entropy = entropy
+        self.clip_before_psf = clip_before_psf
 
     def _train(
         self,
@@ -107,8 +115,10 @@ class SSIDeconvolution(PTCNNImageTranslator):
                 self.psf_kernel, num_channels=num_channels
             ).to(self.device)
         elif ndim == 3:
-            self.psfconv = PSFConvolutionLayer3D(
-                self.psf_kernel, num_channels=num_channels
+            self.psfconv = PSFConvolutionLayer(
+                self.psf_kernel,
+                in_channels=num_channels,
+                pad_mode="replicate",
             ).to(self.device)
 
         super()._train(
@@ -130,7 +140,7 @@ class SSIDeconvolution(PTCNNImageTranslator):
 
     def _additional_losses(
         self, translated_image: T, forward_model_image: T
-    ) -> Tuple[T, Dict[str, float]]:
+    ) -> Tuple[T, Dict[str, Any]]:
 
         loss = 0
         loss_log = {}
@@ -168,7 +178,9 @@ class SSIDeconvolution(PTCNNImageTranslator):
         return loss, loss_log
 
     def _forward_model(self, x):
-        return self.psfconv(torch.clamp(x, 0, 1))
+        if self.clip_before_psf:
+            x = torch.clamp(x, 0, 1)
+        return self.psfconv(x)
 
 
 def entropy(image, normalise=True, epsilon=1e-10, clip=True):
