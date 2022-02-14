@@ -7,11 +7,7 @@ from scipy.ndimage import convolve
 from torch import Tensor as T
 
 from ssi.it_ptcnn import PTCNNImageTranslator
-from ssi.models.psf_convolution import (
-    PSFConvolutionLayer,
-    PSFConvolutionLayer2D,
-    PSFConvolutionLayer3D,
-)
+from ssi.models.psf_convolution import PSFConvolutionLayer
 from ssi.utils.log.log import lprint
 
 
@@ -110,16 +106,11 @@ class SSIDeconvolution(PTCNNImageTranslator):
             self.psf_kernel[numpy.newaxis, numpy.newaxis, ...]
         ).to(self.device)
 
-        if ndim == 2:
-            self.psfconv = PSFConvolutionLayer2D(
-                self.psf_kernel, num_channels=num_channels
-            ).to(self.device)
-        elif ndim == 3:
-            self.psfconv = PSFConvolutionLayer(
-                self.psf_kernel,
-                in_channels=num_channels,
-                pad_mode="replicate",
-            ).to(self.device)
+        self.psf_conv = PSFConvolutionLayer(
+            self.psf_kernel,
+            in_channels=num_channels,
+            pad_mode="reflect" if ndim == 2 else "replicate",
+        ).to(self.device)
 
         super()._train(
             input_image,
@@ -130,13 +121,13 @@ class SSIDeconvolution(PTCNNImageTranslator):
             jinv,
         )
 
-    def _train_loop(self, data_loader, optimizer, loss_function):
+    def _train_loop(self, data_loader, optimizer):
         try:
             self.model.kernel_continuity_regularisation = False
         except AttributeError:
             lprint("Cannot deactivate kernel continuity regularisation")
 
-        super()._train_loop(data_loader, optimizer, loss_function)
+        super()._train_loop(data_loader, optimizer)
 
     def _additional_losses(
         self, translated_image: T, forward_model_image: T
@@ -180,7 +171,7 @@ class SSIDeconvolution(PTCNNImageTranslator):
     def _forward_model(self, x):
         if self.clip_before_psf:
             x = torch.clamp(x, 0, 1)
-        return self.psfconv(x)
+        return self.psf_conv(x)
 
 
 def entropy(image, normalise=True, epsilon=1e-10, clip=True):

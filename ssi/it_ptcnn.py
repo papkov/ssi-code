@@ -2,7 +2,7 @@ import math
 from collections import OrderedDict
 from copy import deepcopy
 from itertools import chain
-from typing import Tuple
+from typing import Dict, Tuple
 
 import numpy
 import torch
@@ -103,6 +103,35 @@ class PTCNNImageTranslator(ImageTranslatorBase):
         self._stop_training_flag = False
         self.check = check
 
+        # Denoise loss function:
+        loss_function = nn.L1Loss()
+        if self.loss.lower() == "l2":
+            lprint(f"Training/Validation loss: L2")
+            if self.masking:
+                loss_function = (
+                    lambda u, v, m: (u - v) ** 2 if m is None else ((u - v) * m) ** 2
+                )
+            else:
+                loss_function = lambda u, v: (u - v) ** 2
+
+        elif self.loss.lower() == "l1":
+            lprint(f"Training/Validation loss: L1")
+            if self.masking:
+                loss_function = (
+                    lambda u, v, m: torch.abs(u - v)
+                    if m is None
+                    else torch.abs((u - v) * m)
+                )
+            else:
+                loss_function = lambda u, v: torch.abs(u - v)
+            lprint(f"Training/Validation loss: L1")
+
+        self.loss_function = loss_function
+
+        self.best_val_loss_value = math.inf
+        self.best_model_state_dict = None
+        self.patience_counter = 0
+
     def _train(
         self,
         input_image,
@@ -118,7 +147,6 @@ class PTCNNImageTranslator(ImageTranslatorBase):
             self.masking = False
 
         shape = input_image.shape
-        num_batches = shape[0]
         num_input_channels = input_image.shape[1]
         num_output_channels = target_image.shape[1]
         num_spatiotemp_dim = input_image.ndim - 2
@@ -194,31 +222,8 @@ class PTCNNImageTranslator(ImageTranslatorBase):
 
         lprint(f"Optimiser: {optimizer}")
 
-        # Denoise loss function:
-        loss_function = nn.L1Loss()
-        if self.loss.lower() == "l2":
-            lprint(f"Training/Validation loss: L2")
-            if self.masking:
-                loss_function = (
-                    lambda u, v, m: (u - v) ** 2 if m is None else ((u - v) * m) ** 2
-                )
-            else:
-                loss_function = lambda u, v: (u - v) ** 2
-
-        elif self.loss.lower() == "l1":
-            lprint(f"Training/Validation loss: L1")
-            if self.masking:
-                loss_function = (
-                    lambda u, v, m: torch.abs(u - v)
-                    if m is None
-                    else torch.abs((u - v) * m)
-                )
-            else:
-                loss_function = lambda u, v: torch.abs(u - v)
-            lprint(f"Training/Validation loss: L1")
-
         # Start training:
-        self._train_loop(data_loader, optimizer, loss_function)
+        self._train_loop(data_loader, optimizer)
 
     def _get_dataset(
         self,
@@ -242,7 +247,187 @@ class PTCNNImageTranslator(ImageTranslatorBase):
         else:
             return None
 
-    def _train_loop(self, data_loader, optimizer, loss_function):
+    def _train_step(
+        self,
+        input_images: T,
+        target_images: T,
+        valid_mask_images: T,
+        epoch: int = 0,
+    ) -> Tuple[T, Dict[str, float]]:
+        self.model.train()
+        loss_log = {}
+
+        # Adding training noise to input:
+        if self.training_noise > 0:
+            with torch.no_grad():
+                alpha = self.training_noise / (1 + (10000 * epoch / self.max_epochs))
+                lprint(f"Training noise level: {alpha}")
+                loss_log["training_noise"] = alpha
+                training_noise = alpha * torch.randn_like(
+                    input_images, device=input_images.device
+                )
+                input_images += training_noise
+
+        # Forward pass:
+        if self.masking:
+            translated_images = self.masked_model(input_images)  # pass with masking
+        else:
+            translated_images = self.model(input_images)
+
+        # apply forward model:
+        forward_model_images = self._forward_model(translated_images)
+
+        if self.two_pass:
+            # pass without masking
+            translated_images_full = self.model(input_images)
+            forward_model_images_full = self._forward_model(translated_images_full)
+
+            # no masking for reconstruction
+            reconstruction_loss = self.loss_function(
+                forward_model_images_full, target_images, None
+            ).mean()
+            loss_log["reconstruction_loss"] = reconstruction_loss.item()
+
+            if self.inv_mse_before_forward_model:
+                u = translated_images_full * (1 - valid_mask_images)
+                v = translated_images * (1 - valid_mask_images)
+            else:
+                u = forward_model_images_full * (1 - valid_mask_images)
+                v = forward_model_images * (1 - valid_mask_images)
+
+            mask = self.masked_model.get_mask()
+            invariance_loss = self.loss_function(u, v, mask).mean()
+            loss_log["invariance_loss"] = invariance_loss.item()
+
+            translation_loss_value = (
+                reconstruction_loss + self.inv_mse_lambda * torch.sqrt(invariance_loss)
+            )
+        else:
+            # validation masking:
+            u = forward_model_images * (1 - valid_mask_images)
+            v = target_images * (1 - valid_mask_images)
+
+            # translation loss (per voxel):
+            if self.masking:
+                mask = self.masked_model.get_mask()
+                translation_loss = self.loss_function(u, v, mask)
+            else:
+                translation_loss = self.loss_function(u, v)
+
+            # translation loss all voxels
+            translation_loss_value = translation_loss.mean()
+
+        loss_log["translation_loss"] = translation_loss_value.item()
+
+        # Additional losses:
+        (
+            additional_loss_value,
+            additional_loss_log,
+        ) = self._additional_losses(translated_images, forward_model_images)
+        if additional_loss_value is not None:
+            translation_loss_value += additional_loss_value
+            loss_log.update(additional_loss_log)
+
+        return translation_loss_value, loss_log
+
+    @torch.no_grad()
+    def _valid_step(self, input_images, target_images, validation_mask_images) -> float:
+        self.model.eval()
+        # Forward pass:
+        if self.masking:
+            translated_images = self.masked_model(input_images)
+        else:
+            translated_images = self.model(input_images)
+
+        # apply forward model:
+        forward_model_images = self._forward_model(translated_images)
+
+        # validation masking:
+        u = forward_model_images * validation_mask_images
+        v = target_images * validation_mask_images
+
+        # translation loss (per voxel):
+        if self.masking:
+            translation_loss = self.loss_function(u, v, None)
+        else:
+            translation_loss = self.loss_function(u, v)
+
+        # loss values:
+        translation_loss_value = translation_loss.mean().cpu().item()
+
+        return translation_loss_value
+
+    def _epoch(
+        self, optimizer, data_loader, epoch: int = 0
+    ) -> Tuple[float, float, Dict[str, float]]:
+        train_loss_value = 0
+        val_loss_value = 0
+        loss_log_epoch = {}
+
+        if hasattr(self, "masked_model"):
+            self.masked_model.density = (
+                0.005 * self.masking_density + 0.995 * self.masked_model.density
+            )
+            lprint(f"masking density: {self.masked_model.density}")
+
+        for i, (input_images, target_images, val_mask_images) in enumerate(data_loader):
+            # Clear gradients w.r.t. parameters
+            optimizer.zero_grad()
+
+            input_images_gpu = input_images.to(self.device, non_blocking=True)
+            target_images_gpu = target_images.to(self.device, non_blocking=True)
+            validation_mask_images_gpu = val_mask_images.to(
+                self.device, non_blocking=True
+            )
+
+            # Training step
+            translation_loss_value, loss_log = self._train_step(
+                input_images_gpu,
+                target_images_gpu,
+                validation_mask_images_gpu,
+                epoch,
+            )
+
+            # Backpropagation
+            translation_loss_value.backward()
+
+            # Updating parameters
+            optimizer.step()
+
+            # post optimisation -- if needed:
+            self.model.post_optimisation()
+
+            # update training loss_deconvolution for whole image:
+            train_loss_value += translation_loss_value.item()
+
+            # Validation:
+            translation_loss_value = self._valid_step(
+                input_images_gpu,
+                target_images_gpu,
+                validation_mask_images_gpu,
+            )
+            # update validation loss_deconvolution for whole image:
+            loss_log["val_translation_loss"] = translation_loss_value
+            val_loss_value += translation_loss_value
+
+            if not loss_log_epoch:
+                loss_log_epoch = deepcopy(loss_log)
+            else:
+                loss_log_epoch = {k: v + loss_log[k] for k, v in loss_log_epoch.items()}
+
+        # Aggregate losses:
+        iteration = len(data_loader)
+        train_loss_value /= iteration
+        lprint(f"Training loss value: {train_loss_value}")
+
+        val_loss_value /= iteration
+        lprint(f"Validation loss value: {val_loss_value}")
+
+        loss_log_epoch = {k: v / iteration for k, v in loss_log_epoch.items()}
+
+        return train_loss_value, val_loss_value, loss_log_epoch
+
+    def _train_loop(self, data_loader, optimizer):
 
         # Scheduler:
         scheduler = ReduceLROnPlateau(
@@ -253,9 +438,9 @@ class PTCNNImageTranslator(ImageTranslatorBase):
             patience=self.reduce_lr_patience,
         )
 
-        best_val_loss_value = math.inf
-        best_model_state_dict = None
-        patience_counter = 0
+        self.best_val_loss_value = math.inf
+        self.best_model_state_dict = None
+        self.patience_counter = 0
 
         with lsection(f"Training loop:"):
             lprint(f"Maximum number of epochs: {self.max_epochs}")
@@ -265,279 +450,85 @@ class PTCNNImageTranslator(ImageTranslatorBase):
 
             for epoch in range(self.max_epochs):
                 with lsection(f"Epoch {epoch}:"):
-
-                    train_loss_value = 0
-                    val_loss_value = 0
-                    loss_log_epoch = {}
-
-                    if hasattr(self, "masked_model"):
-                        self.masked_model.density = (
-                            0.005 * self.masking_density
-                            + 0.995 * self.masked_model.density
-                        )
-                        lprint(f"masking density: {self.masked_model.density}")
-
-                    for i, (input_images, target_images, val_mask_images) in enumerate(
-                        data_loader
-                    ):
-
-                        loss_log = {}
-
-                        lprint(f"index: {i}, shape:{input_images.shape}")
-
-                        input_images_gpu = input_images.to(
-                            self.device, non_blocking=True
-                        )
-                        target_images_gpu = target_images.to(
-                            self.device, non_blocking=True
-                        )
-                        validation_mask_images_gpu = val_mask_images.to(
-                            self.device, non_blocking=True
-                        )
-
-                        # Adding training noise to input:
-                        if self.training_noise > 0:
-                            with torch.no_grad():
-                                alpha = self.training_noise / (
-                                    1 + (10000 * epoch / self.max_epochs)
-                                )
-                                lprint(f"Training noise level: {alpha}")
-                                loss_log["training_noise"] = alpha
-                                training_noise = alpha * torch.randn_like(input_images)
-                                input_images_gpu += training_noise.to(
-                                    input_images_gpu.device
-                                )
-
-                        # Clear gradients w.r.t. parameters
-                        optimizer.zero_grad()
-
-                        # Forward pass:
-                        self.model.train()
-                        if self.masking:
-                            translated_images_gpu = self.masked_model(
-                                input_images_gpu
-                            )  # pass with masking
-                        else:
-                            translated_images_gpu = self.model(input_images_gpu)
-
-                        # apply forward model:
-                        forward_model_images_gpu = self._forward_model(
-                            translated_images_gpu
-                        )
-
-                        # with napari.gui_qt():
-                        #     viewer = napari.Viewer()
-                        #     viewer.add_image(to_numpy(validation_mask_images_gpu), name='validation_mask_images_gpu')
-                        #     viewer.add_image(to_numpy(forward_model_images_gpu), name='forward_model_images_gpu')
-                        #     viewer.add_image(to_numpy(target_images_gpu), name='target_images_gpu')
-
-                        if self.two_pass:
-                            # pass without masking
-                            translated_images_full_gpu = self.model(input_images_gpu)
-                            forward_model_images_full_gpu = self._forward_model(
-                                translated_images_full_gpu
-                            )
-
-                            mask = self.masked_model.get_mask()
-                            # no masking for reconstruction
-                            reconstruction_loss = loss_function(
-                                forward_model_images_full_gpu, target_images_gpu, None
-                            ).mean()
-                            loss_log["reconstruction_loss"] = reconstruction_loss.item()
-
-                            if self.inv_mse_before_forward_model:
-
-                                u = translated_images_full_gpu * (
-                                    1 - validation_mask_images_gpu
-                                )
-                                v = translated_images_gpu * (
-                                    1 - validation_mask_images_gpu
-                                )
-
-                            else:
-
-                                u = forward_model_images_full_gpu * (
-                                    1 - validation_mask_images_gpu
-                                )
-                                v = forward_model_images_gpu * (
-                                    1 - validation_mask_images_gpu
-                                )
-
-                            invariance_loss = loss_function(u, v, mask).mean()
-                            loss_log["invariance_loss"] = invariance_loss.item()
-
-                            translation_loss_value = (
-                                reconstruction_loss
-                                + self.inv_mse_lambda * torch.sqrt(invariance_loss)
-                            )
-                        else:
-                            # validation masking:
-                            u = forward_model_images_gpu * (
-                                1 - validation_mask_images_gpu
-                            )
-                            v = target_images_gpu * (1 - validation_mask_images_gpu)
-
-                            # translation loss (per voxel):
-                            if self.masking:
-                                mask = self.masked_model.get_mask()
-                                translation_loss = loss_function(u, v, mask)
-                            else:
-                                translation_loss = loss_function(u, v)
-
-                            # translation loss all voxels
-                            translation_loss_value = translation_loss.mean()
-
-                        loss_log["translation_loss"] = translation_loss_value.item()
-
-                        # Additional losses:
-                        (
-                            additional_loss_value,
-                            additional_loss_log,
-                        ) = self._additional_losses(
-                            translated_images_gpu, forward_model_images_gpu
-                        )
-                        if additional_loss_value is not None:
-                            translation_loss_value += additional_loss_value
-                            loss_log.update(additional_loss_log)
-
-                        # backpropagation:
-                        translation_loss_value.backward()
-
-                        # Updating parameters
-                        optimizer.step()
-
-                        # post optimisation -- if needed:
-                        self.model.post_optimisation()
-
-                        # update training loss_deconvolution for whole image:
-                        train_loss_value += translation_loss_value.item()
-
-                        # Validation:
-                        with torch.no_grad():
-                            # Forward pass:
-                            self.model.eval()
-                            if self.masking:
-                                translated_images_gpu = self.masked_model(
-                                    input_images_gpu
-                                )
-                            else:
-                                translated_images_gpu = self.model(input_images_gpu)
-
-                            # apply forward model:
-                            forward_model_images_gpu = self._forward_model(
-                                translated_images_gpu
-                            )
-
-                            # validation masking:
-                            u = forward_model_images_gpu * validation_mask_images_gpu
-                            v = target_images_gpu * validation_mask_images_gpu
-
-                            # translation loss (per voxel):
-                            if self.masking:
-                                translation_loss = loss_function(u, v, None)
-                            else:
-                                translation_loss = loss_function(u, v)
-
-                            # loss values:
-                            translation_loss_value = (
-                                translation_loss.mean().cpu().item()
-                            )
-                            loss_log["val_translation_loss"] = translation_loss_value
-
-                            # update validation loss_deconvolution for whole image:
-                            val_loss_value += translation_loss_value
-
-                            if not loss_log_epoch:
-                                loss_log_epoch = deepcopy(loss_log)
-                            else:
-                                loss_log_epoch = {
-                                    k: v + loss_log[k]
-                                    for k, v in loss_log_epoch.items()
-                                }
-
-                    iteration = len(data_loader)
-                    train_loss_value /= iteration
-                    lprint(f"Training loss value: {train_loss_value}")
-
-                    val_loss_value /= iteration
-                    lprint(f"Validation loss value: {val_loss_value}")
-
-                    loss_log_epoch = {
-                        k: v / iteration for k, v in loss_log_epoch.items()
-                    }
+                    # One epoch of training
+                    train_loss_value, val_loss_value, loss_log_epoch = self._epoch(
+                        optimizer, data_loader, epoch
+                    )
 
                     # Learning rate schedule:
                     scheduler.step(val_loss_value)
 
+                    # Logging:
                     loss_log_epoch["masking_density"] = self.masked_model.density
-                    loss_log_epoch["lr"] = scheduler._last_lr[
-                        0
-                    ]  # pylint: disable=protected-access
+                    loss_log_epoch["lr"] = scheduler._last_lr[0]
 
                     if not self.check:
                         wandb.log(loss_log_epoch)
 
-                    if val_loss_value < best_val_loss_value:
+                    # Monitoring and saving:
+                    if val_loss_value < self.best_val_loss_value:
                         lprint(f"## New best val loss!")
-                        if val_loss_value < best_val_loss_value - self.patience_epsilon:
+                        if (
+                            val_loss_value
+                            < self.best_val_loss_value - self.patience_epsilon
+                        ):
                             lprint(f"## Good enough to reset patience!")
-                            patience_counter = 0
+                            self.patience_counter = 0
 
                         # Update best val loss value:
-                        best_val_loss_value = val_loss_value
+                        self.best_val_loss_value = val_loss_value
 
                         # Save model:
-                        best_model_state_dict = OrderedDict(
+                        self.best_model_state_dict = OrderedDict(
                             {k: v.to("cpu") for k, v in self.model.state_dict().items()}
                         )
 
                     else:
                         if (
                             epoch % max(1, self.reload_best_model_period) == 0
-                            and best_model_state_dict
+                            and self.best_model_state_dict
                         ):
                             lprint(f"Reloading best models to date!")
-                            self.model.load_state_dict(best_model_state_dict)
+                            self.model.load_state_dict(self.best_model_state_dict)
 
-                        if patience_counter > self.patience:
+                        if self.patience_counter > self.patience:
                             lprint(f"Early stopping!")
                             break
 
                         # No improvement:
                         lprint(
-                            f"No improvement of validation losses, patience = {patience_counter}/{self.patience} "
+                            f"No improvement of validation losses, patience = {self.patience_counter}/{self.patience} "
                         )
-                        patience_counter += 1
+                        self.patience_counter += 1
 
-                    lprint(f"## Best val loss: {best_val_loss_value}")
+                    lprint(f"## Best val loss: {self.best_val_loss_value}")
 
                     if self._stop_training_flag:
                         lprint(f"Training interupted!")
                         break
 
         lprint(f"Reloading best models to date!")
-        self.model.load_state_dict(best_model_state_dict)
+        self.model.load_state_dict(self.best_model_state_dict)
 
     def _additional_losses(self, translated_image, forward_model_image):
         return None, {}
 
-    def _forward_model(self, input):
-        return input
+    def _forward_model(self, x):
+        return x
 
+    @torch.no_grad()
     def _translate(self, input_image, image_slice=None, whole_image_shape=None):
         """
-            Internal method that translates an input image on the basis of the trained model.
+        Internal method that translates an input image on the basis of the trained model.
         :param input_image: input image
-        :param batch_dims: batch dimensions
         :return:
         """
-        with torch.no_grad():
-            self.model.eval()
-            input_image = torch.Tensor(input_image)
-            input_image = input_image.to(self.device)
-            inferred_image: torch.Tensor = self.model(input_image)
-            inferred_image = inferred_image.detach().cpu().numpy()
-            return inferred_image
+        self.model.eval()
+        input_image = torch.Tensor(input_image)
+        input_image = input_image.to(self.device)
+        inferred_image: torch.Tensor = self.model(input_image)
+        inferred_image = inferred_image.detach().cpu().numpy()
+        return inferred_image
 
     def visualise_weights(self):
         try:
