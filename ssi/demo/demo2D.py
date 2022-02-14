@@ -45,9 +45,10 @@ def demo(
     loss: str = "l2",
     check: bool = False,
     optimizer: str = "esadam",
+    scheduler: str = "plateau",
     clip_before_psf: bool = True,
     fft_psf: Union[str, bool] = "auto",
-    standardize_image: bool = False,
+    standardize: bool = False,
     amp: bool = False,
 ):
 
@@ -85,9 +86,10 @@ def demo(
         inv_mse_lambda=inv_mse_lambda,
         check=check,
         optimizer=optimizer,
+        scheduler=scheduler,
         clip_before_psf=clip_before_psf,
         fft_psf=fft_psf,
-        standardize_image=standardize_image,
+        standardize_image=standardize,
         amp=amp,
     )
 

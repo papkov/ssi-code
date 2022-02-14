@@ -16,8 +16,11 @@ masking_density: 0.01
 lr: 0.001
 max_epochs: 3000
 patience: 1000
+
 loss: l2
 optimizer: esadam
+scheduler: plateau  # plateau, cosine
+
 fft_psf: auto  # auto, true, false
 clip_before_psf: True
 standardize: False  # zero mean, unit variance

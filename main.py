@@ -40,11 +40,12 @@ def main(cfg: DictConfig) -> None:
             learning_rate=cfg.lr,
             loss=cfg.loss,
             optimizer=cfg.optimizer,
+            scheduler=cfg.scheduler,
             output_dir="images",
             check=cfg.check,
             fft_psf=cfg.fft_psf,
             clip_before_psf=cfg.clip_before_psf,
-            standardize_image=cfg.standardize_image,
+            standardize=cfg.standardize,
             amp=cfg.amp,
         )
     elif cfg.experiment.lower() == "3d":

@@ -11,7 +11,7 @@ import wandb
 from torch import Tensor as T
 from torch import nn
 from torch.cuda.amp import autocast
-from torch.optim.lr_scheduler import ReduceLROnPlateau
+from torch.optim.lr_scheduler import ReduceLROnPlateau, CosineAnnealingLR
 from torch.utils.data import Dataset
 
 from ssi.base import ImageTranslatorBase
@@ -85,6 +85,7 @@ class PTCNNImageTranslator(ImageTranslatorBase):
         max_tile_size: int = 1024,  # TODO: adjust based on available memory
         check: bool = True,
         optimizer: str = "esadam",
+        scheduler: str = "step",
         standardize_image: bool = False,
         amp: bool = False,
     ):
@@ -133,6 +134,7 @@ class PTCNNImageTranslator(ImageTranslatorBase):
         self.inv_mse_lambda = inv_mse_lambda
         self.masking_density = masking_density
         self.optimizer_class = ESAdam if optimizer == "esadam" else torch.optim.Adam
+        self.scheduler = scheduler
         self.max_tile_size = max_tile_size
 
         self._stop_training_flag = False
@@ -480,13 +482,19 @@ class PTCNNImageTranslator(ImageTranslatorBase):
     def _train_loop(self, data_loader, optimizer):
 
         # Scheduler:
-        scheduler = ReduceLROnPlateau(
-            optimizer,
-            "min",
-            factor=self.reduce_lr_factor,
-            verbose=True,
-            patience=self.reduce_lr_patience,
-        )
+        if self.scheduler == "plateau":
+            scheduler = ReduceLROnPlateau(
+                optimizer,
+                "min",
+                factor=self.reduce_lr_factor,
+                verbose=True,
+                patience=self.reduce_lr_patience,
+            )
+        elif self.scheduler == "cosine":
+            scheduler = CosineAnnealingLR(
+                optimizer, T_max=self.max_epochs, eta_min=1e-6)
+        else:
+            raise ValueError(f"Unknown scheduler: {self.scheduler}, supported: plateau, cosine")
 
         self.best_val_loss_value = math.inf
         self.best_model_state_dict = None
