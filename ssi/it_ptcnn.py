@@ -11,7 +11,7 @@ import wandb
 from torch import Tensor as T
 from torch import nn
 from torch.cuda.amp import autocast
-from torch.optim.lr_scheduler import ReduceLROnPlateau, CosineAnnealingLR
+from torch.optim.lr_scheduler import CosineAnnealingLR, ReduceLROnPlateau
 from torch.utils.data import Dataset
 
 from ssi.base import ImageTranslatorBase
@@ -365,10 +365,10 @@ class PTCNNImageTranslator(ImageTranslatorBase):
         loss_log["translation_loss"] = translation_loss_value.item()
 
         # Additional losses:
-        (
-            additional_loss_value,
-            additional_loss_log,
-        ) = self._additional_losses(translated_images, forward_model_images)
+        (additional_loss_value, additional_loss_log,) = self._additional_losses(
+            translated_images,
+            forward_model_images_full if self.two_pass else forward_model_images,
+        )
         if additional_loss_value is not None:
             translation_loss_value += additional_loss_value
             loss_log.update(additional_loss_log)
@@ -492,9 +492,12 @@ class PTCNNImageTranslator(ImageTranslatorBase):
             )
         elif self.scheduler == "cosine":
             scheduler = CosineAnnealingLR(
-                optimizer, T_max=self.max_epochs, eta_min=1e-6)
+                optimizer, T_max=self.max_epochs, eta_min=1e-6
+            )
         else:
-            raise ValueError(f"Unknown scheduler: {self.scheduler}, supported: plateau, cosine")
+            raise ValueError(
+                f"Unknown scheduler: {self.scheduler}, supported: plateau, cosine"
+            )
 
         self.best_val_loss_value = math.inf
         self.best_model_state_dict = None
