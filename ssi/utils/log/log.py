@@ -40,9 +40,11 @@ class Log:
         if Log.enable_output:
             print(*args, sep=sep, end=end, file=file)
 
+    @staticmethod
     def set_log_elapsed_time(log_elapsed_time: bool):
         Log.log_elapsed_time = log_elapsed_time
 
+    @staticmethod
     def set_log_max_depth(max_depth: int):
         Log.max_depth = max(0, max_depth - 1)
 
