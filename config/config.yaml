@@ -13,6 +13,7 @@ data: "ssi/benchmark/images/generic_2d_all"
 image: drosophila
 
 masking_density: 0.01
+training_noise: 0.1
 lr: 0.001
 max_epochs: 3000
 patience: 1000

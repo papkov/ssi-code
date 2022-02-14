@@ -74,6 +74,7 @@ class PTCNNImageTranslator(ImageTranslatorBase):
         inv_mse_lambda: float = 2.0,
         inv_mse_before_forward_model=False,
         masking_density=0.01,
+        training_noise=0.1,
         loss="l1",
         normaliser_type="percentile",
         balance_training_data=None,
@@ -124,7 +125,7 @@ class PTCNNImageTranslator(ImageTranslatorBase):
 
         self.l1_weight_regularisation = 1e-6
         self.l2_weight_regularisation = 1e-6
-        self.training_noise = 0.1
+        self.training_noise = training_noise
         self.reload_best_model_period = max_epochs  # //2
         self.reduce_lr_patience = patience // 2
         self.reduce_lr_factor = 0.9
@@ -269,7 +270,11 @@ class PTCNNImageTranslator(ImageTranslatorBase):
         lprint(f"Optimiser: {optimizer}")
 
         # Start training:
-        self._train_loop(data_loader, optimizer)
+        try:
+            self._train_loop(data_loader, optimizer)
+        except KeyboardInterrupt:
+            lprint("Training interrupted by user.")
+            self._stop_training_flag = True
 
     def _get_dataset(
         self,

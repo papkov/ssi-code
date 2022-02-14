@@ -35,6 +35,7 @@ def main(cfg: DictConfig) -> None:
             inv_mse_before_forward_model=cfg.inv_mse_before_forward_model,
             inv_mse_lambda=cfg.inv_mse_lambda,
             masking_density=cfg.masking_density,
+            training_noise=cfg.training_noise,
             max_epochs=cfg.max_epochs if not cfg.check else 10,
             patience=cfg.patience,
             learning_rate=cfg.lr,
