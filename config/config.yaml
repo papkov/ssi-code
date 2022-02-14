@@ -12,8 +12,9 @@ data: "ssi/benchmark/images/generic_2d_all"
 image: drosophila
 
 masking_density: 0.01
-lr: 0.01
+lr: 0.001
 max_epochs: 3000
+patience: 1000
 loss: l2
 
 two_pass: False  # Use two-pass scheme from Noise2Same

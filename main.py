@@ -31,6 +31,7 @@ def main(cfg: DictConfig) -> None:
             inv_mse_lambda=cfg.inv_mse_lambda,
             masking_density=cfg.masking_density,
             max_epochs=cfg.max_epochs if not cfg.check else 10,
+            patience=cfg.patience,
             learning_rate=cfg.lr,
             loss=cfg.loss,
             output_dir="images",

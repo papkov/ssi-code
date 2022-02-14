@@ -3,8 +3,8 @@ from pathlib import Path
 
 import numpy
 import numpy as np
-from imageio import imwrite
 import wandb
+from imageio import imwrite
 
 from ssi.lr_deconv import ImageTranslatorLRDeconv
 from ssi.models.unet import UNet
@@ -38,6 +38,7 @@ def demo(
     inv_mse_lambda: float = 2.0,
     learning_rate: float = 0.01,
     max_epochs: int = 3000,
+    patience: int = 1000,
     masking_density: float = 0.01,
     output_dir: str = "demo_results",
     loss: str = "l2",
@@ -64,7 +65,7 @@ def demo(
 
     it_deconv = SSIDeconvolution(
         max_epochs=max_epochs,
-        patience=300,
+        patience=patience,
         batch_size=8,
         learning_rate=learning_rate,
         normaliser_type="identity",
