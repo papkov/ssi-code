@@ -517,7 +517,10 @@ class PTCNNImageTranslator(ImageTranslatorBase):
                     )
 
                     # Learning rate schedule:
-                    scheduler.step(val_loss_value)
+                    if self.scheduler == "plateau":
+                        scheduler.step(val_loss_value)
+                    else:
+                        scheduler.step()
 
                     # Logging:
                     loss_log_epoch["masking_density"] = self.masked_model.density
