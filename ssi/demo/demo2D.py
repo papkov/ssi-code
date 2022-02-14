@@ -47,7 +47,7 @@ def demo(
     optimizer: str = "esadam",
     clip_before_psf: bool = True,
     fft_psf: Union[str, bool] = "auto",
-    standardize: bool = False,
+    standardize_image: bool = False,
     amp: bool = False,
 ):
 
@@ -87,7 +87,7 @@ def demo(
         optimizer=optimizer,
         clip_before_psf=clip_before_psf,
         fft_psf=fft_psf,
-        standardize=standardize,
+        standardize_image=standardize_image,
         amp=amp,
     )
 

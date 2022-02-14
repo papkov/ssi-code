@@ -39,7 +39,7 @@ def main(cfg: DictConfig) -> None:
             check=cfg.check,
             fft_psf=cfg.fft_psf,
             clip_before_psf=cfg.clip_before_psf,
-            standardize=cfg.standardize,
+            standardize_image=cfg.standardize_image,
             amp=cfg.amp,
         )
     elif cfg.experiment.lower() == "3d":

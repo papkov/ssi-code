@@ -3,7 +3,7 @@ from collections import OrderedDict
 from copy import deepcopy
 from functools import partial
 from itertools import chain
-from typing import Dict, Tuple
+from typing import Dict, Tuple, Optional
 
 import numpy
 import torch
@@ -24,6 +24,34 @@ from ssi.utils.log.log import lprint, lsection
 
 def to_numpy(tensor):
     return tensor.clone().detach().cpu().numpy()
+
+
+def standardize(image: T, mean: Optional[T] = None, std: Optional[T] = None, axis: int = 1) -> Tuple[T, T, T]:
+    """
+    Standardize the image to zero mean and unit variance.
+    :param image: tensor, image to be standardized
+    :param mean: optional tensor, will be calculated along `axis` if not provided
+    :param std: optional tensor, will be calculated along `axis` if not provided
+    :param axis: int, axis along which to calculate mean and std
+    :return: standardized image, mean, std
+    """
+    dim = [i for i, _ in enumerate(image.shape) if i != axis]
+    if mean is None:
+        mean = torch.mean(image, dim=dim, keepdim=True)
+    if std is None:
+        std = torch.std(image, dim=dim, keepdim=True)
+    return (image - mean) / std, mean, std
+
+
+def destandardize(image: T, mean: T, std: T) -> T:
+    """
+    Destandardize the image to the original mean and std.
+    :param image: tensor, image to be destandardized
+    :param mean: tensor, mean to be restored
+    :param std: tensor, std to be restored
+    :return: destandardized image
+    """
+    return image * std + mean
 
 
 class PTCNNImageTranslator(ImageTranslatorBase):
@@ -55,7 +83,7 @@ class PTCNNImageTranslator(ImageTranslatorBase):
         max_tile_size: int = 1024,  # TODO: adjust based on available memory
         check: bool = True,
         optimizer: str = "esadam",
-        standardize: bool = False,
+        standardize_image: bool = False,
         amp: bool = False,
     ):
         """
@@ -68,7 +96,7 @@ class PTCNNImageTranslator(ImageTranslatorBase):
         :param inv_mse_before_forward_model: bool, use invariance MSE before forward (PSF) model for Noise2Same
         :param check: bool, run smoke test
         :param optimizer: str, optimiser to use ["adam", "esadam"]
-        :param standardize: bool, standardize input images to zero mean and unit variance
+        :param standardize_image: bool, standardize input images to zero mean and unit variance
         """
         super().__init__(normaliser_type, monitor=monitor)
         if two_pass and not masking:
@@ -107,7 +135,7 @@ class PTCNNImageTranslator(ImageTranslatorBase):
 
         self._stop_training_flag = False
         self.check = check
-        self.standardize = standardize
+        self.standardize_image = standardize_image
         self.amp = amp
 
         # Denoise loss function:
@@ -394,6 +422,11 @@ class PTCNNImageTranslator(ImageTranslatorBase):
                 self.device, non_blocking=True
             )
 
+            if self.standardize_image:
+                # Standardize input and target images with the same statistics
+                input_images_gpu, mean, std = standardize(input_images_gpu)
+                target_images_gpu, _, _ = standardize(target_images_gpu, mean, std)
+
             # Training step
             with autocast(enabled=self.amp):
                 translation_loss_value, loss_log = self._train_step(
@@ -542,7 +575,15 @@ class PTCNNImageTranslator(ImageTranslatorBase):
         self.model.eval()
         input_image = torch.Tensor(input_image)
         input_image = input_image.to(self.device)
-        inferred_image: torch.Tensor = self.model(input_image)
+
+        if self.standardize_image:
+            input_image, mean, std = standardize(input_image)
+
+        inferred_image = self.model(input_image)
+
+        if self.standardize_image:
+            inferred_image = destandardize(inferred_image, mean, std)
+
         inferred_image = inferred_image.detach().cpu().numpy()
         return inferred_image
 
