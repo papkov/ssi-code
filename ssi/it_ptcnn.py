@@ -316,9 +316,6 @@ class PTCNNImageTranslator(ImageTranslatorBase):
         else:
             translated_images = self.model(input_images)
 
-        # apply forward model:
-        forward_model_images = self._forward_model(translated_images)
-
         if self.two_pass:
             # pass without masking
             translated_images_full = self.model(input_images)
@@ -334,6 +331,7 @@ class PTCNNImageTranslator(ImageTranslatorBase):
                 u = translated_images_full * (1 - valid_mask_images)
                 v = translated_images * (1 - valid_mask_images)
             else:
+                forward_model_images = self._forward_model(translated_images)
                 u = forward_model_images_full * (1 - valid_mask_images)
                 v = forward_model_images * (1 - valid_mask_images)
 
@@ -346,6 +344,7 @@ class PTCNNImageTranslator(ImageTranslatorBase):
             )
         else:
             # validation masking:
+            forward_model_images = self._forward_model(translated_images)
             u = forward_model_images * (1 - valid_mask_images)
             v = target_images * (1 - valid_mask_images)
 
