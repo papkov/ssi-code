@@ -3,7 +3,7 @@ from collections import OrderedDict
 from copy import deepcopy
 from functools import partial
 from itertools import chain
-from typing import Dict, Tuple, Optional
+from typing import Dict, Optional, Tuple
 
 import numpy
 import torch
@@ -26,7 +26,9 @@ def to_numpy(tensor):
     return tensor.clone().detach().cpu().numpy()
 
 
-def standardize(image: T, mean: Optional[T] = None, std: Optional[T] = None, axis: int = 1) -> Tuple[T, T, T]:
+def standardize(
+    image: T, mean: Optional[T] = None, std: Optional[T] = None, axis: int = 1
+) -> Tuple[T, T, T]:
     """
     Standardize the image to zero mean and unit variance.
     :param image: tensor, image to be standardized

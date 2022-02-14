@@ -7,7 +7,9 @@ from skimage.metrics import peak_signal_noise_ratio, structural_similarity
 
 
 def ssim(image_a, image_b):
-    return structural_similarity(image_a, image_b, multichannel=image_a.ndim == 3, data_range=1)
+    return structural_similarity(
+        image_a, image_b, multichannel=image_a.ndim == 3, data_range=1
+    )
 
 
 def psnr(image_true, image_test):

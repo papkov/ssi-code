@@ -40,7 +40,9 @@ class SSIDeconvolution(PTCNNImageTranslator):
         super().__init__(**kwargs)
 
         if self.standardize_image and clip_before_psf:
-            lprint("Clipping before PSF convolution is not supported when standardizing image")
+            lprint(
+                "Clipping before PSF convolution is not supported when standardizing image"
+            )
             clip_before_psf = False
 
         self.provided_psf_kernel = psf_kernel

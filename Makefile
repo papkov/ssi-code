@@ -1,5 +1,5 @@
 TEST_PATH=./tests
-MODULES_PATH=./ssi
+MODULES_PATH=./ssi main.py
 
 .PHONY: format lint test commit
 
